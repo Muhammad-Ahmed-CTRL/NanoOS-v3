@@ -1,0 +1,13 @@
+# NanoOS Build Artifacts
+*.bin
+*.img
+*.sys
+*.obj
+*.o
+
+# QEMU files
+qemu-*.log
+
+# OS-specific temp files
+.DS_Store
+Thumbs.db
