@@ -62,21 +62,21 @@ shell_main:
     mov  esi, sh_welcome_msg
     mov  bl, S_BL_BK        ; Use bright white
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, 4
     mov  dl, 15
     mov  esi, sh_welcome_msg2
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, 6
     mov  dl, 20
     mov  esi, sh_prompt_hint
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     jmp  sh_loop
 
@@ -163,7 +163,7 @@ sh_loop:
     call sh_read_line
 
     ; Move to next line for command execution/output!
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     ; Dispatch the command
     call sh_dispatch
@@ -395,7 +395,7 @@ sh_dispatch:
     mov  dl, 15
     mov  bl, 0x0C
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 .msg db ": Unknown command", 0
 
@@ -424,12 +424,12 @@ cmd_clear:
 ; ================================================================
 cmd_help:
     call cmd_clear
-    mov  dh, 0
+    mov  dh, 2
     mov  dl, 28
     mov  esi, sh_help_hdr
     mov  bl, S_GR_BK
     call sh_write_str
-    mov  byte [sh_cur_row], 2
+    mov  byte [sh_cur_row], 4
 
     ; --- System & Core ---
     mov  dh, [sh_cur_row]
@@ -437,7 +437,7 @@ cmd_help:
     mov  esi, sh_cat_sys
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
@@ -450,7 +450,7 @@ cmd_help:
     mov  dl, 50
     mov  esi, sh_sys_3
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
@@ -462,7 +462,7 @@ cmd_help:
     mov  dl, 50
     mov  esi, sh_sys_6
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
@@ -474,7 +474,7 @@ cmd_help:
     mov  dl, 50
     mov  esi, sh_sys_9
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
@@ -486,8 +486,8 @@ cmd_help:
     mov  dl, 50
     mov  esi, sh_sys_12
     call sh_write_str
-    inc  byte [sh_cur_row]
-    inc  byte [sh_cur_row]
+    call sh_inc_row
+    call sh_inc_row
 
     ; --- Simulated Filesystem ---
     mov  dh, [sh_cur_row]
@@ -495,7 +495,7 @@ cmd_help:
     mov  esi, sh_cat_file
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
@@ -508,7 +508,7 @@ cmd_help:
     mov  dl, 50
     mov  esi, sh_file_3
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
@@ -520,7 +520,7 @@ cmd_help:
     mov  dl, 50
     mov  esi, sh_file_6
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
@@ -532,7 +532,7 @@ cmd_help:
     mov  dl, 50
     mov  esi, sh_file_9
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
@@ -541,8 +541,8 @@ cmd_help:
     mov  dl, 25
     mov  esi, sh_file_11
     call sh_write_str
-    inc  byte [sh_cur_row]
-    inc  byte [sh_cur_row]
+    call sh_inc_row
+    call sh_inc_row
 
     ; --- Apps & Utilities ---
     mov  dh, [sh_cur_row]
@@ -550,7 +550,7 @@ cmd_help:
     mov  esi, sh_cat_apps
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
@@ -563,7 +563,7 @@ cmd_help:
     mov  dl, 50
     mov  esi, sh_app_3
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
@@ -575,7 +575,7 @@ cmd_help:
     mov  dl, 50
     mov  esi, sh_app_6
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
@@ -587,13 +587,13 @@ cmd_help:
     mov  dl, 50
     mov  esi, sh_app_9
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
     mov  esi, sh_app_10
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     
     ret
 
@@ -752,28 +752,28 @@ cmd_calculator:
     jmp  .show
 
 .div_zero:
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     mov  dh, [sh_cur_row]
     mov  dl, 5
     mov  esi, sh_calc_divz
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     jmp  .wrap_check
 
 .bad_expr:
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     mov  dh, [sh_cur_row]
     mov  dl, 5
     mov  esi, sh_calc_err
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     jmp  .wrap_check
 
 .show:
     mov  [calc_result], eax
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     mov  dh, [sh_cur_row]
     mov  dl, 5
     mov  esi, sh_calc_eq
@@ -785,10 +785,10 @@ cmd_calculator:
     mov  dl, 7
     mov  bl, S_GR_BK
     call sh_print_int
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
 .wrap_check:
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     cmp  byte [sh_cur_row], 21
     jl   .cloop
     call cmd_clear
@@ -878,13 +878,13 @@ cmd_files:
     call sh_strcmp
     je   .fread_help
 
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     mov  dh, [sh_cur_row]
     mov  dl, 5
     mov  esi, sh_nofile
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     jmp  .floop
 
 .fread_readme:
@@ -1130,33 +1130,33 @@ cmd_game:
     jl   .glow
 
     ; Too high
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     mov  dh, [sh_cur_row]
     mov  dl, 5
     mov  esi, sh_game_high
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     jmp  .gwrap
 
 .glow:
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     mov  dh, [sh_cur_row]
     mov  dl, 5
     mov  esi, sh_game_low
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     jmp  .gwrap
 
 .gbad:
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     mov  dh, [sh_cur_row]
     mov  dl, 5
     mov  esi, sh_game_bad
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     jmp  .gwrap
 
 .gwin:
@@ -1839,7 +1839,7 @@ cmd_ls:
     mov  esi, str_ls_hdr
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     ; List current directory
     mov  esi, [fs_current_dir]
@@ -1848,7 +1848,7 @@ cmd_ls:
     mov  esi, str_ls_tip
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 fs_list_dir:
@@ -1897,7 +1897,7 @@ fs_list_dir:
 
 .print:
     call sh_write_str
-    inc byte [sh_cur_row]
+    call sh_inc_row
 
 .next_entry:
     add edi, 16          ; Advance to next 16-byte entry
@@ -1990,6 +1990,18 @@ get_free_target_id:
     pop edi
     pop ecx
     pop ebx
+    ret
+
+sh_inc_row:
+    push eax
+    inc  byte [sh_cur_row]
+.check_inc:
+    cmp  byte [sh_cur_row], 23
+    jb   .inc_done
+    call sh_scroll_up
+    jmp  .check_inc
+.inc_done:
+    pop  eax
     ret
 
 sh_scroll_up:
@@ -2121,7 +2133,7 @@ cmd_cd:
     mov  esi, .err_notfound
     mov  bl, S_RD_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .not_dir:
@@ -2130,7 +2142,7 @@ cmd_cd:
     mov  esi, .err_notdir
     mov  bl, S_RD_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .cd_root:
@@ -2155,14 +2167,14 @@ cmd_pwd:
     mov  esi, str_pwd_out
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, fs_current_path
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 cmd_mkdir:
@@ -2195,7 +2207,7 @@ cmd_mkdir:
     mov  esi, .err_full
     mov  bl, S_RD_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .found_empty:
@@ -2229,14 +2241,14 @@ cmd_mkdir:
     mov  esi, str_mkdir_ok
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .no_arg:
     mov  esi, .usage
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .err_full db "mkdir: directory full", 0
@@ -2249,7 +2261,7 @@ cmd_rmdir:
     mov  esi, str_rmdir_ok
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 cmd_touch:
@@ -2282,7 +2294,7 @@ cmd_touch:
     mov  esi, .err_full
     mov  bl, S_RD_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .found_empty:
@@ -2329,14 +2341,14 @@ cmd_touch:
     mov  esi, str_touch_ok
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .no_arg:
     mov  esi, .usage
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .err_full db "touch: directory full", 0
@@ -2413,7 +2425,7 @@ cmd_rm:
     mov  esi, str_rm_ok
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .next:
@@ -2427,7 +2439,7 @@ cmd_rm:
     mov  esi, str_file_notfound
     mov  bl, S_RD_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .is_dir:
@@ -2436,14 +2448,14 @@ cmd_rm:
     mov  esi, .err_isdir
     mov  bl, S_RD_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .no_arg:
     mov  esi, .usage
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .err_isdir db "rm: is a directory", 0
@@ -2570,7 +2582,7 @@ cmd_cat:
     mov  esi, str_file_notfound
     mov  bl, S_RD_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .is_dir:
@@ -2579,14 +2591,14 @@ cmd_cat:
     mov  esi, .err_isdir
     mov  bl, S_RD_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .no_arg:
     mov  esi, str_cat_usage
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .err_isdir db "cat: is a directory", 0
@@ -2621,7 +2633,7 @@ sh_write_file:
     jmp .loop
 
 .newline:
-    inc byte [sh_cur_row]
+    call sh_inc_row
     movzx eax, byte [sh_cur_row]
     imul eax, 160
     mov edi, eax
@@ -2633,7 +2645,7 @@ sh_write_file:
     jmp .loop
 
 .done:
-    inc byte [sh_cur_row]
+    call sh_inc_row
     popad
     ret
 
@@ -2643,7 +2655,7 @@ cmd_cp:
     mov  esi, str_cp_ok
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 cmd_mv:
@@ -2652,7 +2664,7 @@ cmd_mv:
     mov  esi, str_mv_ok
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 ; ================================================================
@@ -2665,14 +2677,14 @@ cmd_ver:
     mov  esi, str_ver_out
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_ver_name
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 cmd_time:
@@ -2739,7 +2751,7 @@ cmd_time:
     mov  esi, str_time_out
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     ; Print the actual time
     mov  dh, [sh_cur_row]
@@ -2747,7 +2759,7 @@ cmd_time:
     mov  esi, time_buf
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 cmd_date:
@@ -2815,14 +2827,14 @@ cmd_date:
     mov  esi, str_date_out
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, date_buf
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 cmd_uptime:
@@ -2831,14 +2843,14 @@ cmd_uptime:
     mov  esi, str_uptime_out
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_uptime_val
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 cmd_hostname:
@@ -2847,14 +2859,14 @@ cmd_hostname:
     mov  esi, str_hostname_out
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_hostname_val
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 cmd_reboot:
@@ -2863,7 +2875,7 @@ cmd_reboot:
     mov  esi, str_reboot_msg
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     ; Reboot via keyboard controller
     mov  al, 0xFE
@@ -2876,7 +2888,7 @@ cmd_shutdown:
     mov  esi, str_shutdown_msg
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     ; Shutdown - this would need ACPI, for now just show message
     ret
@@ -2891,28 +2903,28 @@ cmd_mem:
     mov  esi, str_mem_hdr
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_mem_conv
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_mem_ext
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_mem_total
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 cmd_regs:
@@ -2921,77 +2933,77 @@ cmd_regs:
     mov  esi, str_regs_hdr
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_regs_eax
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_regs_ebx
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_regs_ecx
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_regs_edx
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_regs_esi
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_regs_edi
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_regs_ebp
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_regs_esp
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_regs_eip
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_regs_flags
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 ; ================================================================
@@ -3022,7 +3034,7 @@ cmd_echo:
     mov  dl, 3
     mov  bl, [term_color]
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .do_redirect:
@@ -3168,7 +3180,7 @@ cmd_echo:
     mov  esi, .err_full
     mov  bl, S_RD_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .found_empty:
@@ -3231,7 +3243,7 @@ cmd_echo:
     mov  esi, .str_write_ok
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .write_readonly:
@@ -3241,7 +3253,7 @@ cmd_echo:
     mov  esi, .err_readonly
     mov  bl, S_RD_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .err_isdir:
@@ -3250,7 +3262,7 @@ cmd_echo:
     mov  esi, .err_isdir_s
     mov  bl, S_RD_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .no_msg:
@@ -3325,15 +3337,15 @@ cmd_ps:
     mov  esi, str_ps_hdr
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_ps_col
     mov  bl, S_BL_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
-    inc  byte [sh_cur_row]
+    call sh_inc_row
+    call sh_inc_row
 
     mov  ecx, 4       ; MAX_TASKS
     mov  edi, 0x20000 ; TCB_BASE
@@ -3383,7 +3395,7 @@ cmd_ps:
     mov  bl, S_WH_BK
     call sh_print_int_simple
 
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
 .ps_next:
     add  edi, 64   ; TCB_SIZE
@@ -3597,6 +3609,7 @@ snake_game_over:
 
 snake_done:
     call cmd_clear
+    call sh_draw_chrome
     ret
 
 ; ================================================================
@@ -3654,7 +3667,7 @@ cmd_fibonacci:
     mov  eax, [fib_a]
     mov  bl, S_GR_BK
     call sh_print_int
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     ; Next: temp = fib_a + fib_b
     mov  eax, [fib_a]
@@ -3678,7 +3691,7 @@ cmd_prime:
     mov  esi, str_prime_hdr
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     ; Parse number from input (after "prime ")
     mov  esi, sh_input_buf
@@ -3726,7 +3739,7 @@ cmd_prime:
     mov  esi, str_is_prime
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .not_prime:
@@ -3740,7 +3753,7 @@ cmd_prime:
     mov  esi, str_not_prime
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .prime_no_arg:
@@ -3749,7 +3762,7 @@ cmd_prime:
     mov  esi, str_prime_usage
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 ; ================================================================
@@ -3833,7 +3846,7 @@ cmd_wc:
     mov  esi, str_wc_hdr
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     ; Parse text after "wc "
     mov  esi, sh_input_buf
@@ -3876,7 +3889,7 @@ cmd_wc:
     mov  eax, ecx
     mov  bl, S_BL_BK
     call sh_print_int
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 3
@@ -3888,7 +3901,7 @@ cmd_wc:
     mov  eax, edx
     mov  bl, S_BL_BK
     call sh_print_int
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .wc_empty:
@@ -3897,7 +3910,7 @@ cmd_wc:
     mov  esi, str_wc_usage
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 ; ================================================================
@@ -3909,7 +3922,7 @@ cmd_hex:
     mov  esi, str_hex_hdr
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     ; Parse number after "hex "
     mov  esi, sh_input_buf
@@ -3950,7 +3963,7 @@ cmd_hex:
     lea  esi, [hex_buf]
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .hex_no_arg:
@@ -3959,7 +3972,7 @@ cmd_hex:
     mov  esi, str_hex_usage
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 ; ================================================================
@@ -3971,7 +3984,7 @@ cmd_morse:
     mov  esi, str_morse_hdr
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
 
     mov  esi, sh_input_buf
     add  esi, 6          ; skip "morse "
@@ -4026,7 +4039,7 @@ cmd_morse:
     jmp  .morse_char
 
 .morse_done:
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 .morse_no_arg:
@@ -4035,7 +4048,7 @@ cmd_morse:
     mov  esi, str_morse_usage
     mov  bl, S_GR_BK
     call sh_write_str
-    inc  byte [sh_cur_row]
+    call sh_inc_row
     ret
 
 ; ================================================================
