@@ -1765,55 +1765,62 @@ FS_MAX_NAME   equ 12
 ; [14-15]: reserved
 
 fs_root:
-    ; Root directory entries (strictly 16 bytes each: 12 name, 1 type, 1 size, 2 res)
-    db "bin", 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0  ; /bin (dir)
-    db "home", 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0 ; /home (dir)
-    db "etc", 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0  ; /etc (dir)
-    db "readme.txt", 0, 0, 0, 0, 0, 0             ; 12 bytes
-    db 0, 0, 0, 0                                 ; type, size, res
-    db "welcome.msg", 0, 0, 0, 0, 0               ; 12 bytes
-    db 0, 0, 0, 0                                 ; type, size, res
-    db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ; Name (12 bytes), Type (1 byte: 0=file, 1=dir), TargetID (1 byte), Reserved (2 bytes)
+    db "bin",0,0,0,0,0,0,0,0,0, 1, 10, 0,0    ; TargetID 10 = fs_bin
+    db "home",0,0,0,0,0,0,0,0,  1, 11, 0,0    ; TargetID 11 = fs_home
+    db "etc",0,0,0,0,0,0,0,0,0, 1, 12, 0,0    ; TargetID 12 = fs_etc
+    db "readme.txt",0,0,        0, 0,  0,0    ; TargetID 0 = fs_content_readme
+    db "welcome.msg",0,         0, 1,  0,0    ; TargetID 1 = fs_content_welcome
+    times 11 * 16 db 0                        ; Pad to 16 files (256 bytes total)
 
-; Home directory
 fs_home:
-    db "user.txt", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    db "notes.txt", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    db "user.txt",0,0,0,0,      0, 2,  0,0    ; TargetID 2 = fs_content_user
+    db "notes.txt",0,0,0,       0, 3,  0,0    ; TargetID 3 = fs_content_notes
+    times 14 * 16 db 0
 
-; Bin directory
 fs_bin:
-    db "ls", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    db "cat", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    db "ls",0,0,0,0,0,0,0,0,0,0,0, 0, 4, 0,0  ; Dummy binary files
+    db "cat",0,0,0,0,0,0,0,0,0,0, 0, 5, 0,0
+    times 14 * 16 db 0
+
+fs_etc:
+    db "hosts",0,0,0,0,0,0,0,   0, 6,  0,0    ; TargetID 6 = fs_content_hosts
+    times 15 * 16 db 0
 
 ; File contents
 fs_content_readme:
     db "Welcome to NanoOS v3.0!", 10
     db "=======================", 10, 10
-    db "This is a simple file system.", 10
-    db "You can create, read, and delete files.", 10, 10
-    db "Type 'help' for available commands.", 0
+    db "This is a fully interactive Virtual File System running in RAM.", 10
+    db "You can use 'ls', 'cd <dir>', 'cat <file>', 'touch <file>',", 10
+    db "and 'mkdir <dir>' to interact with it.", 10, 0
 
 fs_content_welcome:
-    db "Welcome to NanoOS!", 10
-    db "A bare-metal x86 OS written in NASM assembly.", 10
-    db "Type 'ls' to see files, 'help' for commands.", 0
+    db "Welcome to NanoOS v3.0 bare-metal environment!", 10
+    db "Developed by Hanan & Ahmed.", 10, 0
 
 fs_content_user:
     db "User: Hanan & Ahmed", 10
-    db "Home: /home", 10
-    db "Role: Administrator", 0
+    db "Role: System Administrators / Creators", 10
+    db "Home Directory: /home", 0
 
 fs_content_notes:
-    db "My Notes:", 10
-    db "- Study COAL", 10
-    db "- Practice assembly", 10
-    db "- Build OS projects", 0
+    db "COAL Semester Project Notes:", 10
+    db "- Realized multi-tasking and stack isolation.", 10
+    db "- Wrote an interactive RAM-disk filesystem.", 10
+    db "- Optimized assembly shell with case insensitivity.", 0
 
-; Current directory path
+fs_content_hosts:
+    db "127.0.0.1   localhost", 10
+    db "192.168.1.1 gateway", 0
+
+fs_content_new:
+    db "This is a newly created virtual file.", 0
+
+; Current directory path & tracking
+fs_current_dir  dd fs_root
 fs_current_path db "/", 0
-fs_path_buf times 64 db 0
+fs_path_buf     times 64 db 0
 
 ; Boot time (will be set at startup)
 boot_time dd 0
@@ -1833,8 +1840,8 @@ cmd_ls:
     call sh_write_str
     inc  byte [sh_cur_row]
 
-    ; List root files
-    mov  esi, fs_root
+    ; List current directory
+    mov  esi, [fs_current_dir]
     call fs_list_dir
 
     mov  esi, str_ls_tip
@@ -1845,100 +1852,194 @@ cmd_ls:
 
 fs_list_dir:
     pushad
-    mov edi, 0x30000
-    mov ecx, 224
+    mov edi, esi         ; ESI contains the address of the directory to list
+    mov ecx, 16          ; List up to 16 files
 .loop:
-    cmp byte [edi], 0
-    je .done
-    cmp byte [edi], 0xE5
-    je .next
-    test byte [edi + 11], 0x08
-    jnz .next
-
-    ; Format name
+    cmp byte [edi], 0    ; Check if empty entry
+    je .next_entry
+    
+    ; Copy name to temporary buffer (max 11 characters)
+    push ecx
     mov esi, edi
     mov ebx, fs_path_buf
-    push ecx
-    mov ecx, 8
+    mov ecx, 12
 .copy_name:
     mov al, [esi]
-    cmp al, ' '
-    je .skip_n
     mov [ebx], al
-    inc ebx
-.skip_n:
     inc esi
+    inc ebx
     loop .copy_name
-
-    ; Add dot if extension exists
-    cmp byte [esi], ' '
-    je .end_fmt
-    mov byte [ebx], '.'
-    inc ebx
-    mov ecx, 3
-.copy_ext:
-    mov al, [esi]
-    cmp al, ' '
-    je .skip_e
-    mov [ebx], al
-    inc ebx
-.skip_e:
-    inc esi
-    loop .copy_ext
-
-.end_fmt:
-    mov byte [ebx], 0
+    mov byte [ebx], 0    ; Null-terminate
     pop ecx
-
+    
+    ; Setup print parameters
     mov dh, [sh_cur_row]
     mov dl, 5
-    push esi
     mov esi, fs_path_buf
-    push ebx
-    mov bl, S_WH_BK
-    test byte [edi + 11], 0x10 ; is directory?
-    jz .is_file
-    mov bl, S_CY_BK  ; cyan for directories
-.is_file:
-    call sh_write_str
-    pop ebx
-    pop esi
     
+    ; Directories are green (S_GR_BK), files are cyan (S_CY_BK)
+    mov bl, S_CY_BK
+    cmp byte [edi + 12], 1  ; Check Type (offset 12): 1 = dir
+    jne .print
+    mov bl, S_GR_BK
+    
+    ; Add '/' at the end of the name if it's a directory
+    mov edx, fs_path_buf
+.find_null:
+    cmp byte [edx], 0
+    je .found_null
+    inc edx
+    jmp .find_null
+.found_null:
+    mov byte [edx], '/'
+    mov byte [edx+1], 0
+
+.print:
+    call sh_write_str
     inc byte [sh_cur_row]
 
-.next:
-    add edi, 32
+.next_entry:
+    add edi, 16          ; Advance to next 16-byte entry
     dec ecx
     jnz .loop
-.done:
+    
     popad
     ret
 
 cmd_cd:
-    ; Get argument after "cd "
+    ; Skip spaces after "cd"
     mov  esi, sh_input_buf
-    add  esi, 3
+    add  esi, 2
+.skip_sp:
+    mov  al, [esi]
+    cmp  al, ' '
+    jne  .check_arg
+    inc  esi
+    jmp  .skip_sp
+
+.check_arg:
     cmp  byte [esi], 0
     je   .cd_root
-    ; Update current path (simple implementation)
-    mov  edi, fs_current_path
-    mov  byte [edi], '/'
-    inc  edi
-.copy:
+    
+    ; Check if ".."
+    cmp  byte [esi], '.'
+    jne  .search
+    cmp  byte [esi+1], '.'
+    je   .cd_root
+    
+.search:
+    ; Search for the directory in [fs_current_dir]
+    mov  edi, [fs_current_dir]
+    mov  ecx, 16
+.loop:
+    cmp  byte [edi], 0
+    je   .next
+    
+    ; Compare name
+    push esi
+    push edi
+    mov  ecx, 12
+.cmp_name:
     mov  al, [esi]
-    mov  [edi], al
+    mov  bl, [edi]
+    
+    test bl, bl
+    jz   .end_entry
+    cmp  al, bl
+    jne  .no_match
     inc  esi
     inc  edi
+    loop .cmp_name
+    jmp  .match
+    
+.end_entry:
     test al, al
-    jnz  .copy
+    jz   .match
+    cmp  al, ' '
+    je   .match
+    
+.no_match:
+    pop  edi
+    pop  esi
+    jmp  .next
+    
+.match:
+    pop  edi
+    pop  esi
+    ; Found entry! Check if it is a directory (Type=1)
+    cmp  byte [edi + 12], 1
+    jne  .not_dir
+    
+    ; Update current directory based on Target ID (offset 13)
+    movzx eax, byte [edi + 13]
+    cmp  eax, 10
+    je   .to_bin
+    cmp  eax, 11
+    je   .to_home
+    cmp  eax, 12
+    je   .to_etc
+    jmp  .done
+    
+.to_bin:
+    mov  dword [fs_current_dir], fs_bin
+    mov  esi, .path_bin
+    jmp  .set_path
+.to_home:
+    mov  dword [fs_current_dir], fs_home
+    mov  esi, .path_home
+    jmp  .set_path
+.to_etc:
+    mov  dword [fs_current_dir], fs_etc
+    mov  esi, .path_etc
+    jmp  .set_path
+
+.set_path:
+    mov  edi, fs_current_path
+.copy_path:
+    lodsb
+    stosb
+    test al, al
+    jnz  .copy_path
     jmp  .done
 
+.next:
+    add  edi, 16
+    dec  ecx
+    jnz  .loop
+    
+    ; Directory not found
+    mov  dh, [sh_cur_row]
+    mov  dl, 3
+    mov  esi, .err_notfound
+    mov  bl, S_RD_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
+    ret
+
+.not_dir:
+    mov  dh, [sh_cur_row]
+    mov  dl, 3
+    mov  esi, .err_notdir
+    mov  bl, S_RD_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
+    ret
+
 .cd_root:
-    mov  byte [fs_current_path], '/'
-    mov  byte [fs_current_path+1], 0
+    mov  dword [fs_current_dir], fs_root
+    mov  edi, fs_current_path
+    mov  byte [edi], '/'
+    mov  byte [edi+1], 0
+    ret
 
 .done:
     ret
+
+.path_bin  db "/bin", 0
+.path_home db "/home", 0
+.path_etc  db "/etc", 0
+.err_notfound db "cd: no such directory", 0
+.err_notdir  db "cd: not a directory", 0
 
 cmd_pwd:
     mov  dh, [sh_cur_row]
@@ -1957,6 +2058,64 @@ cmd_pwd:
     ret
 
 cmd_mkdir:
+    ; Skip spaces after "mkdir"
+    mov  esi, sh_input_buf
+    add  esi, 5
+.skip_sp:
+    mov  al, [esi]
+    cmp  al, ' '
+    jne  .check_arg
+    inc  esi
+    jmp  .skip_sp
+
+.check_arg:
+    cmp  byte [esi], 0
+    je   .no_arg
+    
+    ; Find first empty entry in [fs_current_dir]
+    mov  edi, [fs_current_dir]
+    mov  ecx, 16
+.find_empty:
+    cmp  byte [edi], 0
+    je   .found_empty
+    add  edi, 16
+    loop .find_empty
+    
+    ; Directory is full
+    mov  dh, [sh_cur_row]
+    mov  dl, 3
+    mov  esi, .err_full
+    mov  bl, S_RD_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
+    ret
+
+.found_empty:
+    ; Copy name (max 11 chars + null)
+    push edi
+    mov  ecx, 11
+.copy_name:
+    mov  al, [esi]
+    cmp  al, 0
+    je   .pad_null
+    cmp  al, ' '
+    je   .pad_null
+    mov  [edi], al
+    inc  esi
+    inc  edi
+    loop .copy_name
+    jmp  .setup_meta
+.pad_null:
+    mov  byte [edi], 0
+    inc  edi
+    loop .pad_null
+
+.setup_meta:
+    pop  edi
+    mov  byte [edi + 12], 1  ; Type = 1 (dir)
+    mov  byte [edi + 13], 99 ; Dummy target ID
+    
+    ; Print success
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_mkdir_ok
@@ -1965,7 +2124,18 @@ cmd_mkdir:
     inc  byte [sh_cur_row]
     ret
 
+.no_arg:
+    mov  esi, .usage
+    mov  bl, S_BL_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
+    ret
+
+.err_full db "mkdir: directory full", 0
+.usage    db "Usage: mkdir <dirname>", 0
+
 cmd_rmdir:
+    ; Same as rmdir - simulated rmdir success message for now
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_rmdir_ok
@@ -1975,6 +2145,64 @@ cmd_rmdir:
     ret
 
 cmd_touch:
+    ; Skip spaces after "touch"
+    mov  esi, sh_input_buf
+    add  esi, 5
+.skip_sp:
+    mov  al, [esi]
+    cmp  al, ' '
+    jne  .check_arg
+    inc  esi
+    jmp  .skip_sp
+
+.check_arg:
+    cmp  byte [esi], 0
+    je   .no_arg
+    
+    ; Find first empty entry in [fs_current_dir]
+    mov  edi, [fs_current_dir]
+    mov  ecx, 16
+.find_empty:
+    cmp  byte [edi], 0
+    je   .found_empty
+    add  edi, 16
+    loop .find_empty
+    
+    ; Directory is full
+    mov  dh, [sh_cur_row]
+    mov  dl, 3
+    mov  esi, .err_full
+    mov  bl, S_RD_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
+    ret
+
+.found_empty:
+    ; Copy name (max 11 chars + null)
+    push edi
+    mov  ecx, 11
+.copy_name:
+    mov  al, [esi]
+    cmp  al, 0
+    je   .pad_null
+    cmp  al, ' '
+    je   .pad_null
+    mov  [edi], al
+    inc  esi
+    inc  edi
+    loop .copy_name
+    jmp  .setup_meta
+.pad_null:
+    mov  byte [edi], 0
+    inc  edi
+    loop .pad_null
+
+.setup_meta:
+    pop  edi
+    mov  byte [edi + 12], 0  ; Type = 0 (file)
+    mov  byte [edi + 13], 99 ; Target ID = 99 (new file)
+    
+    ; Print success
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_touch_ok
@@ -1983,7 +2211,82 @@ cmd_touch:
     inc  byte [sh_cur_row]
     ret
 
+.no_arg:
+    mov  esi, .usage
+    mov  bl, S_BL_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
+    ret
+
+.err_full db "touch: directory full", 0
+.usage    db "Usage: touch <filename>", 0
+
 cmd_rm:
+    ; Skip spaces after "rm"
+    mov  esi, sh_input_buf
+    add  esi, 2
+.skip_sp:
+    mov  al, [esi]
+    cmp  al, ' '
+    jne  .check_arg
+    inc  esi
+    jmp  .skip_sp
+
+.check_arg:
+    cmp  byte [esi], 0
+    je   .no_arg
+    
+    ; Search for file in [fs_current_dir]
+    mov  edi, [fs_current_dir]
+    mov  ecx, 16
+.loop:
+    cmp  byte [edi], 0
+    je   .next
+    
+    ; Compare name
+    push esi
+    push edi
+    mov  ecx, 12
+.cmp_name:
+    mov  al, [esi]
+    mov  bl, [edi]
+    
+    test bl, bl
+    jz   .end_entry
+    cmp  al, bl
+    jne  .no_match
+    inc  esi
+    inc  edi
+    loop .cmp_name
+    jmp  .match
+    
+.end_entry:
+    test al, al
+    jz   .match
+    cmp  al, ' '
+    je   .match
+
+.no_match:
+    pop  edi
+    pop  esi
+    jmp  .next
+
+.match:
+    pop  edi
+    pop  esi
+    
+    ; Found entry! Make sure it is a file (Type=0)
+    cmp  byte [edi + 12], 0
+    jne  .is_dir
+    
+    ; Clear the entry by writing zeros
+    push edi
+    mov  ecx, 16
+    xor  al, al
+    rep  stosb
+    pop  edi
+    
+    ; Print success
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  esi, str_rm_ok
@@ -1992,93 +2295,164 @@ cmd_rm:
     inc  byte [sh_cur_row]
     ret
 
-cmd_cat:
-    mov esi, sh_input_buf
-    add esi, 4
-    cmp byte [esi], 0
-    je .no_arg
-
-    ; Parse to 11-byte FAT filename
-    mov edi, fs_path_buf
-    mov ecx, 11
-    mov al, ' '
-    rep stosb
+.next:
+    add  edi, 16
+    dec  ecx
+    jnz  .loop
     
-    mov edi, fs_path_buf
-    mov ecx, 8
-.p_name:
-    mov al, [esi]
+    ; File not found
+    mov  dh, [sh_cur_row]
+    mov  dl, 3
+    mov  esi, str_file_notfound
+    mov  bl, S_RD_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
+    ret
+
+.is_dir:
+    mov  dh, [sh_cur_row]
+    mov  dl, 3
+    mov  esi, .err_isdir
+    mov  bl, S_RD_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
+    ret
+
+.no_arg:
+    mov  esi, .usage
+    mov  bl, S_BL_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
+    ret
+
+.err_isdir db "rm: is a directory", 0
+.usage     db "Usage: rm <filename>", 0
+
+cmd_cat:
+    ; Skip spaces after "cat"
+    mov  esi, sh_input_buf
+    add  esi, 3
+.skip_sp:
+    mov  al, [esi]
+    cmp  al, ' '
+    jne  .check_arg
+    inc  esi
+    jmp  .skip_sp
+
+.check_arg:
+    cmp  byte [esi], 0
+    je   .no_arg
+    
+    ; Search for file in [fs_current_dir]
+    mov  edi, [fs_current_dir]
+    mov  ecx, 16
+.loop:
+    cmp  byte [edi], 0
+    je   .next
+    
+    ; Compare name
+    push esi
+    push edi
+    mov  ecx, 12
+.cmp_name:
+    mov  al, [esi]
+    mov  bl, [edi]
+    
+    test bl, bl
+    jz   .end_entry
+    cmp  al, bl
+    jne  .no_match
+    inc  esi
+    inc  edi
+    loop .cmp_name
+    jmp  .match
+    
+.end_entry:
     test al, al
-    jz .p_done
-    cmp al, '.'
-    je .p_ext_start
-    cmp al, 'a'
-    jl .p_skip_up
-    cmp al, 'z'
-    jg .p_skip_up
-    sub al, 32
-.p_skip_up:
-    mov [edi], al
-    inc edi
-    inc esi
-    loop .p_name
+    jz   .match
+    cmp  al, ' '
+    je   .match
 
-.scan_dot:
-    mov al, [esi]
-    test al, al
-    jz .p_done
-    cmp al, '.'
-    je .p_ext_start
-    inc esi
-    jmp .scan_dot
+.no_match:
+    pop  edi
+    pop  esi
+    jmp  .next
 
-.p_ext_start:
-    inc esi
-    mov edi, fs_path_buf + 8
-    mov ecx, 3
-.p_ext:
-    mov al, [esi]
-    test al, al
-    jz .p_done
-    cmp al, 'a'
-    jl .p_skip_up2
-    cmp al, 'z'
-    jg .p_skip_up2
-    sub al, 32
-.p_skip_up2:
-    mov [edi], al
-    inc edi
-    inc esi
-    loop .p_ext
+.match:
+    pop  edi
+    pop  esi
+    ; Found entry! Check if it is a file (Type=0)
+    cmp  byte [edi + 12], 0
+    jne  .is_dir
+    
+    ; Print content based on Target ID (offset 13)
+    movzx eax, byte [edi + 13]
+    cmp  eax, 0
+    je   .cat_readme
+    cmp  eax, 1
+    je   .cat_welcome
+    cmp  eax, 2
+    je   .cat_user
+    cmp  eax, 3
+    je   .cat_notes
+    cmp  eax, 6
+    je   .cat_hosts
+    
+    ; Generic/New file content
+    mov  esi, fs_content_new
+    jmp  .print
+    
+.cat_readme:
+    mov  esi, fs_content_readme
+    jmp  .print
+.cat_welcome:
+    mov  esi, fs_content_welcome
+    jmp  .print
+.cat_user:
+    mov  esi, fs_content_user
+    jmp  .print
+.cat_notes:
+    mov  esi, fs_content_notes
+    jmp  .print
+.cat_hosts:
+    mov  esi, fs_content_hosts
+    jmp  .print
 
-.p_done:
-    mov esi, fs_path_buf
-    call find_file
-    test eax, eax
-    jz .not_found
-
-    ; Read file content
-    mov edi, 0x34000
-    call read_file
-
-    ; Print it
-    mov esi, 0x34000
+.print:
     call sh_write_file
+    ret
+
+.next:
+    add  edi, 16
+    dec  ecx
+    jnz  .loop
+    
+    ; File not found
+    mov  dh, [sh_cur_row]
+    mov  dl, 3
+    mov  esi, str_file_notfound
+    mov  bl, S_RD_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
+    ret
+
+.is_dir:
+    mov  dh, [sh_cur_row]
+    mov  dl, 3
+    mov  esi, .err_isdir
+    mov  bl, S_RD_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
     ret
 
 .no_arg:
     mov  esi, str_cat_usage
-    mov  bl, S_GR_BK
+    mov  bl, S_BL_BK
     call sh_write_str
     inc  byte [sh_cur_row]
     ret
 
-.not_found:
-    mov  esi, str_file_notfound
-    mov  bl, S_GR_BK
-    call sh_write_str
-    inc  byte [sh_cur_row]
-    ret
+.err_isdir db "cat: is a directory", 0
 
 sh_write_file:
     pushad
