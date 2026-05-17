@@ -1821,6 +1821,7 @@ fs_content_new:
 fs_current_dir  dd fs_root
 fs_current_path db "/", 0
 fs_path_buf     times 64 db 0
+dynamic_file_contents times 2048 db 0  ; 8 dynamic files of 256 bytes each!
 
 ; Boot time (will be set at startup)
 boot_time dd 0
@@ -1904,6 +1905,91 @@ fs_list_dir:
     jnz .loop
     
     popad
+    ret
+
+get_free_target_id:
+    push ebx
+    push ecx
+    push edi
+    
+    ; We will check IDs 20 to 27
+    mov al, 20
+.check_id:
+    ; Scan fs_root
+    mov edi, fs_root
+    mov ecx, 16
+.scan_root:
+    cmp byte [edi], 0
+    je .next_root
+    cmp byte [edi + 12], 0  ; is file?
+    jne .next_root
+    cmp byte [edi + 13], al
+    je .id_taken
+.next_root:
+    add edi, 16
+    dec ecx
+    jnz .scan_root
+
+    ; Scan fs_home
+    mov edi, fs_home
+    mov ecx, 16
+.scan_home:
+    cmp byte [edi], 0
+    je .next_home
+    cmp byte [edi + 12], 0  ; is file?
+    jne .next_home
+    cmp byte [edi + 13], al
+    je .id_taken
+.next_home:
+    add edi, 16
+    dec ecx
+    jnz .scan_home
+
+    ; Scan fs_bin
+    mov edi, fs_bin
+    mov ecx, 16
+.scan_bin:
+    cmp byte [edi], 0
+    je .next_bin
+    cmp byte [edi + 12], 0  ; is file?
+    jne .next_bin
+    cmp byte [edi + 13], al
+    je .id_taken
+.next_bin:
+    add edi, 16
+    dec ecx
+    jnz .scan_bin
+
+    ; Scan fs_etc
+    mov edi, fs_etc
+    mov ecx, 16
+.scan_etc:
+    cmp byte [edi], 0
+    je .next_etc
+    cmp byte [edi + 12], 0  ; is file?
+    jne .next_etc
+    cmp byte [edi + 13], al
+    je .id_taken
+.next_etc:
+    add edi, 16
+    dec ecx
+    jnz .scan_etc
+
+    ; If we reached here, the ID in AL is free!
+    jmp .done
+
+.id_taken:
+    inc al
+    cmp al, 28
+    jl .check_id
+    
+    ; No free dynamic IDs! Return 99 (fallback)
+    mov al, 99
+
+.done:
+    pop edi
+    pop ecx
+    pop ebx
     ret
 
 cmd_cd:
@@ -2200,7 +2286,20 @@ cmd_touch:
 .setup_meta:
     pop  edi
     mov  byte [edi + 12], 0  ; Type = 0 (file)
-    mov  byte [edi + 13], 99 ; Target ID = 99 (new file)
+    call get_free_target_id
+    mov  [edi + 13], al      ; Assign free dynamic Target ID!
+    
+    ; Clear the corresponding buffer if it's dynamic
+    cmp  al, 20
+    jl   .done_touch
+    cmp  al, 27
+    jg   .done_touch
+    sub  al, 20
+    movzx eax, al
+    imul eax, 256
+    add  eax, dynamic_file_contents
+    mov  byte [eax], 0       ; Empty string!
+.done_touch:
     
     ; Print success
     mov  dh, [sh_cur_row]
@@ -2387,6 +2486,22 @@ cmd_cat:
     
     ; Print content based on Target ID (offset 13)
     movzx eax, byte [edi + 13]
+    
+    ; Check if dynamic file Target ID (20 to 27)
+    cmp  al, 20
+    jl   .not_dynamic
+    cmp  al, 27
+    jg   .not_dynamic
+    
+    ; It's dynamic! Calculate the buffer address
+    sub  al, 20
+    movzx eax, al
+    imul eax, 256
+    add  eax, dynamic_file_contents
+    mov  esi, eax
+    jmp  .print
+
+.not_dynamic:
     cmp  eax, 0
     je   .cat_readme
     cmp  eax, 1
@@ -2398,7 +2513,7 @@ cmd_cat:
     cmp  eax, 6
     je   .cat_hosts
     
-    ; Generic/New file content
+    ; Generic/New empty file content
     mov  esi, fs_content_new
     jmp  .print
     
@@ -2867,7 +2982,20 @@ cmd_echo:
     add  esi, 5
     cmp  byte [esi], 0
     je   .no_msg
+    
+    ; Search for '>' in the message
+    mov  edi, esi
+.find_redirect:
+    mov  al, [edi]
+    test al, al
+    jz   .no_redirect
+    cmp  al, '>'
+    je   .do_redirect
+    inc  edi
+    jmp  .find_redirect
 
+.no_redirect:
+    ; Traditional echo: just write to screen!
     mov  dh, [sh_cur_row]
     mov  dl, 3
     mov  bl, [term_color]
@@ -2875,8 +3003,241 @@ cmd_echo:
     inc  byte [sh_cur_row]
     ret
 
+.do_redirect:
+    ; Found redirection! Let's split at '>'
+    mov  byte [edi], 0   ; Null-terminate the echo content!
+    
+    ; Get filename pointer (after '>')
+    inc  edi
+.skip_spaces:
+    mov  al, [edi]
+    cmp  al, ' '
+    jne  .got_filename
+    inc  edi
+    jmp  .skip_spaces
+    
+.got_filename:
+    ; Trim trailing spaces/newlines from filename
+    push edi
+    mov  edx, edi
+.find_end_file:
+    mov  al, [edx]
+    test al, al
+    jz   .trim_file
+    inc  edx
+    jmp  .find_end_file
+.trim_file:
+    dec  edx
+    cmp  edx, edi
+    jl   .file_trimmed
+.trim_loop:
+    mov  al, [edx]
+    cmp  al, ' '
+    je   .do_trim
+    cmp  al, 13
+    je   .do_trim
+    cmp  al, 10
+    je   .do_trim
+    jmp  .file_trimmed
+.do_trim:
+    mov  byte [edx], 0
+    dec  edx
+    jmp  .trim_loop
+.file_trimmed:
+    pop  edi             ; EDI now contains the clean filename!
+    
+    ; Trim trailing spaces from the echo text (which starts at ESI)
+    push edi
+    push esi
+    mov  edx, esi
+.find_end_text:
+    mov  al, [edx]
+    test al, al
+    jz   .trim_text
+    inc  edx
+    jmp  .find_end_text
+.trim_text:
+    dec  edx
+    cmp  edx, esi
+    jl   .text_trimmed
+.trim_text_loop:
+    mov  al, [edx]
+    cmp  al, ' '
+    je   .do_trim_text
+    jmp  .text_trimmed
+.do_trim_text:
+    mov  byte [edx], 0
+    dec  edx
+    jmp  .trim_text_loop
+.text_trimmed:
+    pop  esi             ; ESI now contains the clean content text!
+    pop  edi             ; EDI contains the filename!
+    
+    ; EDI = filename, ESI = content
+    ; Now, search if the filename already exists in [fs_current_dir]
+    push esi
+    push edi
+    
+    mov  ebx, [fs_current_dir]
+    mov  ecx, 16
+.search_loop:
+    cmp  byte [ebx], 0
+    je   .search_next
+    
+    ; Compare name
+    push edi
+    push ebx
+    mov  ecx, 12
+.cmp_name:
+    mov  al, [edi]
+    mov  dl, [ebx]
+    test dl, dl
+    jz   .end_cmp
+    cmp  al, dl
+    jne  .no_match
+    inc  edi
+    inc  ebx
+    loop .cmp_name
+    jmp  .match
+.end_cmp:
+    test al, al
+    jz   .match
+.no_match:
+    pop  ebx
+    pop  edi
+    jmp  .search_next
+    
+.match:
+    pop  ebx             ; EBX = start of matching directory entry!
+    pop  edi
+    pop  edi             ; clean stack
+    pop  esi
+    
+    ; Found existing entry! Make sure it is a file (Type=0)
+    cmp  byte [ebx + 12], 0
+    jne  .err_isdir
+    
+    ; Use its existing Target ID
+    movzx eax, byte [ebx + 13]
+    jmp  .write_to_buffer
+
+.search_next:
+    add  ebx, 16
+    dec  ecx
+    jnz  .search_loop
+    
+    ; File does not exist! Let's create it!
+    pop  edi
+    pop  esi
+    
+    ; Find an empty entry in [fs_current_dir]
+    mov  ebx, [fs_current_dir]
+    mov  ecx, 16
+.find_empty:
+    cmp  byte [ebx], 0
+    je   .found_empty
+    add  ebx, 16
+    dec  ecx
+    jnz  .find_empty
+    
+    ; Directory is full
+    mov  dh, [sh_cur_row]
+    mov  dl, 3
+    mov  esi, .err_full
+    mov  bl, S_RD_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
+    ret
+
+.found_empty:
+    ; Create file entry. Copy filename to [ebx]
+    push ebx
+    push esi
+    mov  ecx, 11
+.copy_name:
+    mov  al, [edi]
+    cmp  al, 0
+    je   .pad_null
+    mov  [ebx], al
+    inc  edi
+    inc  ebx
+    loop .copy_name
+    jmp  .setup_new
+.pad_null:
+    mov  byte [ebx], 0
+    inc  ebx
+    loop .pad_null
+    
+.setup_new:
+    pop  esi
+    pop  ebx
+    mov  byte [ebx + 12], 0  ; Type = 0 (file)
+    
+    ; Get free Target ID
+    call get_free_target_id
+    mov  [ebx + 13], al
+    movzx eax, al
+
+.write_to_buffer:
+    ; EAX = Target ID (20 to 27)
+    ; ESI = message content
+    cmp  eax, 20
+    jl   .write_readonly
+    cmp  eax, 27
+    jg   .write_readonly
+    
+    ; Calculate dynamic buffer address
+    sub  eax, 20
+    imul eax, 256
+    add  eax, dynamic_file_contents
+    mov  edi, eax
+    
+    ; Copy content (up to 255 bytes)
+    mov  ecx, 255
+.copy_content:
+    lodsb
+    stosb
+    test al, al
+    jz   .write_done
+    loop .copy_content
+    mov  byte [edi], 0   ; Null-terminate if limit reached
+    
+.write_done:
+    ; Print success
+    mov  dh, [sh_cur_row]
+    mov  dl, 3
+    mov  esi, .str_write_ok
+    mov  bl, S_GR_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
+    ret
+
+.write_readonly:
+    ; Trying to overwrite a pre-existing read-only/system file (like readme.txt)
+    mov  dh, [sh_cur_row]
+    mov  dl, 3
+    mov  esi, .err_readonly
+    mov  bl, S_RD_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
+    ret
+
+.err_isdir:
+    mov  dh, [sh_cur_row]
+    mov  dl, 3
+    mov  esi, .err_isdir_s
+    mov  bl, S_RD_BK
+    call sh_write_str
+    inc  byte [sh_cur_row]
+    ret
+
 .no_msg:
     ret
+
+.err_full      db "echo: directory full", 0
+.err_readonly  db "echo: system file is read-only", 0
+.err_isdir_s   db "echo: cannot overwrite a directory", 0
+.str_write_ok  db "File written successfully.", 0
 
 cmd_color:
     ; Get color after "color "
