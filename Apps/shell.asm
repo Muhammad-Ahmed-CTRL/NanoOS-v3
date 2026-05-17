@@ -162,17 +162,17 @@ sh_loop:
     ; Read a line using 32-bit direct port I/O
     call sh_read_line
 
+    ; Move to next line for command execution/output!
+    inc  byte [sh_cur_row]
+
     ; Dispatch the command
     call sh_dispatch
 
-    ; After command, move to next line for the next prompt
-    inc  byte [sh_cur_row]
-
-    ; Simple scroll/wrap: if near bottom (row 23), clear work area
+.check_scroll:
     cmp  byte [sh_cur_row], 23
     jb   sh_loop
-    call cmd_clear
-    jmp  sh_loop
+    call sh_scroll_up
+    jmp  .check_scroll
 
 ; ================================================================
 ;  SH_DISPATCH
@@ -1990,6 +1990,28 @@ get_free_target_id:
     pop edi
     pop ecx
     pop ebx
+    ret
+
+sh_scroll_up:
+    pushad
+    cld
+    
+    ; Copy rows 3..23 to rows 2..22
+    mov  edi, SH_VRAM + 2 * 80 * 2
+    mov  esi, SH_VRAM + 3 * 80 * 2
+    mov  ecx, 21 * 80 * 2 / 4
+    rep  movsd
+    
+    ; Clear Row 23
+    mov  edi, SH_VRAM + 23 * 80 * 2
+    mov  ecx, 80
+    mov  ax, 0x0720  ; Space, grey on black
+    rep  stosw
+    
+    ; Adjust cur_row
+    dec  byte [sh_cur_row]
+    
+    popad
     ret
 
 cmd_cd:
