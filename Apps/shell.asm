@@ -135,18 +135,41 @@ sh_draw_chrome:
 ;  SH_LOOP  — read-eval loop
 ; ================================================================
 sh_loop:
-    ; Print prompt
-    mov  esi, sh_str_prompt
+    ; Print "nano:"
+    mov  esi, sh_str_prompt_p1
     mov  dh, [sh_cur_row]
     mov  dl, 1
-    mov  bl, 0x0F           ; Bright White
+    mov  bl, 0x0A           ; Light Green
     call sh_write_str
 
-    ; Move hardware cursor to col 7 (after "nano> ")
-    mov  dh, [sh_cur_row]
-    mov  dl, 7
-    mov  [sh_cursor_row], dh
+    ; Print current path
+    mov  esi, fs_current_path
+    mov  dl, 6              ; "nano:" is 5 chars
+    mov  bl, 0x0B           ; Light Cyan
+    call sh_write_str
+    
+    ; Calculate path length
+    mov  edi, fs_current_path
+    xor  ecx, ecx
+.len_loop:
+    cmp  byte [edi+ecx], 0
+    je   .len_done
+    inc  ecx
+    jmp  .len_loop
+.len_done:
+
+    ; Print "> "
+    mov  dl, 6
+    add  dl, cl
+    mov  esi, sh_str_prompt_p2
+    mov  bl, 0x0F           ; White
+    call sh_write_str
+    
+    ; Move hardware cursor
+    add  dl, 2
     mov  [sh_cursor_col], dl
+    mov  dh, [sh_cur_row]
+    mov  [sh_cursor_row], dh
     call sh_hw_cursor
 
     ; --- Heartbeat Indicator ---
@@ -1921,8 +1944,6 @@ get_free_target_id:
 .scan_root:
     cmp byte [edi], 0
     je .next_root
-    cmp byte [edi + 12], 0  ; is file?
-    jne .next_root
     cmp byte [edi + 13], al
     je .id_taken
 .next_root:
@@ -1936,8 +1957,6 @@ get_free_target_id:
 .scan_home:
     cmp byte [edi], 0
     je .next_home
-    cmp byte [edi + 12], 0  ; is file?
-    jne .next_home
     cmp byte [edi + 13], al
     je .id_taken
 .next_home:
@@ -1951,8 +1970,6 @@ get_free_target_id:
 .scan_bin:
     cmp byte [edi], 0
     je .next_bin
-    cmp byte [edi + 12], 0  ; is file?
-    jne .next_bin
     cmp byte [edi + 13], al
     je .id_taken
 .next_bin:
@@ -1966,8 +1983,6 @@ get_free_target_id:
 .scan_etc:
     cmp byte [edi], 0
     je .next_etc
-    cmp byte [edi + 12], 0  ; is file?
-    jne .next_etc
     cmp byte [edi + 13], al
     je .id_taken
 .next_etc:
@@ -2098,6 +2113,45 @@ cmd_cd:
     je   .to_home
     cmp  eax, 12
     je   .to_etc
+    
+    ; Check if dynamic directory (ID >= 20 and <= 27)
+    cmp  eax, 20
+    jl   .done
+    cmp  eax, 27
+    jg   .done
+    
+    ; It's a dynamic directory!
+    sub  eax, 20
+    imul eax, 256
+    add  eax, dynamic_file_contents
+    mov  [fs_current_dir], eax
+    
+    ; Append name to path
+    mov  edx, fs_current_path
+.find_end:
+    cmp  byte [edx], 0
+    je   .append_slash
+    inc  edx
+    jmp  .find_end
+.append_slash:
+    cmp  byte [edx - 1], '/'
+    je   .append_name
+    mov  byte [edx], '/'
+    inc  edx
+.append_name:
+    mov  ecx, 11
+.copy_char:
+    mov  al, [edi]
+    cmp  al, 0
+    je   .done_append
+    cmp  al, ' '
+    je   .done_append
+    mov  [edx], al
+    inc  edi
+    inc  edx
+    loop .copy_char
+.done_append:
+    mov  byte [edx], 0
     jmp  .done
     
 .to_bin:
@@ -2233,7 +2287,8 @@ cmd_mkdir:
 .setup_meta:
     pop  edi
     mov  byte [edi + 12], 1  ; Type = 1 (dir)
-    mov  byte [edi + 13], 99 ; Dummy target ID
+    call get_free_target_id
+    mov  [edi + 13], al      ; Assign dynamic target ID
     
     ; Print success
     mov  dh, [sh_cur_row]
@@ -4634,7 +4689,8 @@ cmd_cls_s    db "cls", 0
 ansi_clear db 27, "[2J", 27, "[H", 0
 sh_str_hdr     db " NanoOS v3.0   32-bit Protected Mode   NASM Assembly   x86 IA-32", 0
 sh_str_ftr     db " ls cd pwd mkdir touch rm cat ver time date mem regs echo color ps logo snake help ", 0
-sh_str_prompt  db "nano> ", 0
+sh_str_prompt_p1 db "nano:", 0
+sh_str_prompt_p2 db "> ", 0
 sh_str_unknown db "Unknown command. Type 'help' to see commands.", 0
 
 ; ── Welcome messages ─────────────────────────────────────────────────
