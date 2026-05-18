@@ -43,6 +43,18 @@ An educational, bare-metal 32-bit operating system built completely from scratch
    & "C:\Program Files\qemu\qemu-system-i386.exe" -fda c:\Users\muham\Downloads\NanoOS\NanoOS\nanoos.img -boot a -m 4M -name "NanoOS v3.0" -audiodev dsound,id=snd0 -machine pc,pcspk-audiodev=snd0 2>&1
    ```
    *(Alternatively, use `.\build.ps1 run` to launch via WSL).*
+
+### Making it Bootable on Real Hardware
+When you run `.\build.ps1`, it now automatically generates a universally bootable **`nanoos.iso`** file using the El Torito Bootable CD Specification.
+
+1. **To run it on a real laptop/PC:**
+   * Download a tool like [Rufus](https://rufus.ie/).
+   * Select your USB drive, and choose the generated `nanoos.iso` file.
+   * Flash it, plug the USB into your computer, and boot from it!
+2. **To run it in VirtualBox or VMware:**
+   * Create a new virtual machine.
+   * Mount the `nanoos.iso` file into the virtual CD/DVD drive.
+   * Start the VM, and NanoOS will boot instantly!
 4. To clean up build artifacts:
    ```powershell
    .\build.ps1 clean
