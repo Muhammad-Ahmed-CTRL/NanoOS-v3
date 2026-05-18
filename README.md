@@ -17,7 +17,7 @@ An educational, bare-metal 32-bit operating system built completely from scratch
 * **Interactive Shell**: Robust, case-insensitive parser with argument support. Features over 30 commands, including:
   * **System**: `help`, `about` (credits screen), `clear` / `cls`, `ver`, `time`/`date` (via CMOS RTC), `uptime`, `mem`, `regs` (displays active registers), `ps` (task list).
   * **Filesystem**: Simulated commands `ls`, `cd`, `pwd`, `mkdir`, `rmdir`, `touch`, `rm`, `cat`, `cp`, `mv`, `files` (graphical file browser).
-  * **Apps & Games**: `calc` (arithmetic parser), `game` (number guessing), `snake` (interactive WASD terminal game), `fibonacci` sequence, `prime` checker, `tictactoe` (two-player local game), `morse` translator, `sysinfo`, `wc` (word count), and `hex` converter.
+  * **Apps & Games**: `calc` (arithmetic parser), `game` (number guessing), `snake` (interactive WASD terminal game), `fibonacci` sequence, `prime` checker, `tictactoe` (two-player local game), `morse` translator, `sysinfo`, `wc` (word count), `hex` converter, `bootanim` (animated boot sequence), `play` (retro PC speaker music), `paint` (interactive pixel canvas), and `clock` (large digital clock).
 
 ---
 
@@ -34,11 +34,16 @@ An educational, bare-metal 32-bit operating system built completely from scratch
    git clone https://github.com/Muhammad-Ahmed-CTRL/NanoOS-v3.git
    cd NanoOS-v3
    ```
-2. Run the build script using PowerShell to assemble the binaries, create the `nanoos.img` floppy image, and launch it in QEMU:
+2. Run the build script using PowerShell to assemble the binaries and create the `nanoos.img` floppy image:
    ```powershell
-   .\build.ps1 run
+   .\build.ps1
    ```
-3. To clean up build artifacts:
+3. **Best way to run natively on Windows (with Sound enabled!)**:
+   ```powershell
+   qemu-system-i386.exe -fda nanoos.img -boot a -m 4M -name "NanoOS v3.0" -audiodev dsound,id=snd0 -machine pc,pcspk-audiodev=snd0
+   ```
+   *(Alternatively, use `.\build.ps1 run` to launch via WSL).*
+4. To clean up build artifacts:
    ```powershell
    .\build.ps1 clean
    ```

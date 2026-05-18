@@ -678,6 +678,21 @@ cmd_help:
     mov  dl, 2
     mov  esi, sh_app_10
     call sh_write_str
+    mov  dl, 25
+    mov  esi, sh_app_11
+    call sh_write_str
+    mov  dl, 50
+    mov  esi, sh_app_12
+    call sh_write_str
+    call sh_inc_row
+    
+    mov  dh, [sh_cur_row]
+    mov  dl, 2
+    mov  esi, sh_app_13
+    call sh_write_str
+    mov  dl, 25
+    mov  esi, sh_app_14
+    call sh_write_str
     call sh_inc_row
     
     ret
@@ -5716,6 +5731,10 @@ sh_app_7       db "  logo    - ASCII logo", 0
 sh_app_8       db "  wc      - Word count", 0
 sh_app_9       db "  hex     - Hex convert", 0
 sh_app_10      db "  morse   - Text to morse", 0
+sh_app_11      db "  bootanim- Boot sequence", 0
+sh_app_12      db "  play    - Sound player", 0
+sh_app_13      db "  paint   - Text painter", 0
+sh_app_14      db "  clock   - Large clock", 0
 
 ; ── File System Strings ───────────────────────────────────────────
 str_ls_hdr    db "=== File Listing ===", 0
