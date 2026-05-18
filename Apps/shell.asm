@@ -51,6 +51,42 @@ shell_main:
     call sh_draw_chrome         ; Persistent header + footer
     call cmd_clear              ; Clean workspace
 
+.login_loop:
+    mov  dh, 2
+    mov  dl, 2
+    mov  esi, str_login_prompt
+    mov  bl, 0x0A
+    call sh_write_str
+
+    mov  dh, 2
+    mov  dl, 14
+    mov  [sh_cursor_row], dh
+    mov  [sh_cursor_col], dl
+    call sh_hw_cursor
+
+    call sh_read_password
+
+    ; Check password
+    mov  esi, sh_input_buf
+    mov  edi, str_password
+    call sh_strcmp
+    je   .login_ok
+
+    ; Failed
+    mov  dh, 4
+    mov  dl, 2
+    mov  esi, str_login_fail
+    mov  bl, 0x0C
+    call sh_write_str
+    
+    ; Pause a bit or just wait for next loop. Let's just loop.
+    ; Wait, we shouldn't just loop because the error stays on row 4 while we prompt on row 2 again. 
+    ; Let's clear the screen on fail to retry clean.
+    call cmd_clear
+    jmp  .login_loop
+
+.login_ok:
+    call cmd_clear
 
     ; Show welcome message
     mov  dh, 3
@@ -405,6 +441,11 @@ sh_dispatch:
     mov  edi, cmd_hex_s
     call sh_is_cmd
     je   cmd_hex
+
+    mov  esi, sh_input_buf
+    mov  edi, cmd_hexdump_s
+    call sh_is_cmd
+    je   cmd_hexdump
 
     ; Unknown command - now at the end
     mov  esi, sh_input_buf
@@ -1408,6 +1449,123 @@ sh_read_line:
     ret
 
 
+
+; ================================================================
+;  SH_READ_PASSWORD
+; ================================================================
+sh_read_password:
+    push eax
+    push ebx
+    push ecx
+    push edi
+    cld
+
+    mov  edi, sh_input_buf
+    xor  ecx, ecx
+    mov  byte [shift_state], 0
+
+.wait_pw:
+    call sys_get_scancode
+    test al, al
+    jz   .wait_pw
+
+    cmp  ah, 1
+    je   .process_pw
+
+    cmp  al, SC_LSHIFT
+    je   .set_shift_pw
+    cmp  al, SC_RSHIFT
+    je   .set_shift_pw
+    
+    cmp  al, SC_LSHIFT | 0x80
+    je   .clear_shift_pw
+    cmp  al, SC_RSHIFT | 0x80
+    je   .clear_shift_pw
+
+    test al, 0x80
+    jnz  .wait_pw
+
+    movzx ebx, al
+    cmp  byte [shift_state], 0
+    jne  .do_shift_pw
+    mov  al, [sc_table + ebx]
+    jmp  .check_translated_pw
+.do_shift_pw:
+    mov  al, [sc_shift + ebx]
+
+.check_translated_pw:
+    test al, al
+    jz   .wait_pw
+
+.process_pw:
+    cmp  al, 13
+    je   .done_pw
+    cmp  al, 10
+    je   .done_pw
+    cmp  al, 8
+    je   .bs_pw
+
+    cmp  al, 'A'
+    jl   .store_char_pw
+    cmp  al, 'Z'
+    jg   .store_char_pw
+    add  al, 32
+
+.store_char_pw:
+    cmp  ecx, INPUT_MAX-1
+    jge  .wait_pw
+    mov  [edi], al
+    inc  edi
+    inc  ecx
+
+    ; Echo asterisk
+    push ebx
+    movzx eax, byte [sh_cursor_row]
+    imul eax, 160
+    movzx ebx, byte [sh_cursor_col]
+    imul ebx, 2
+    add  eax, ebx
+    add  eax, SH_VRAM
+    pop  ebx
+    
+    mov  bl, '*'    ; Print Asterisk
+    mov  [eax], bl
+    mov  byte [eax+1], 0x0F
+    inc  byte [sh_cursor_col]
+    call sh_hw_cursor
+    jmp  .wait_pw
+
+.set_shift_pw:
+    mov  byte [shift_state], 1
+    jmp  .wait_pw
+
+.clear_shift_pw:
+    mov  byte [shift_state], 0
+    jmp  .wait_pw
+
+.bs_pw:
+    test ecx, ecx
+    jz   .wait_pw
+    dec  edi
+    dec  ecx
+    dec  byte [sh_cursor_col]
+    movzx eax, byte [sh_cursor_row]
+    imul eax, 160
+    movzx ebx, byte [sh_cursor_col]
+    imul ebx, 2
+    add  eax, ebx
+    add  eax, SH_VRAM
+    mov  word [eax], 0x0720
+    call sh_hw_cursor
+    jmp  .wait_pw
+
+.done_pw:
+    mov  byte [edi], 0
+    pop  edi
+    pop  ecx
+    pop  ebx
+    pop  eax
+    ret
 
 ; ================================================================
 ;  SH_WRITE_STR
@@ -4008,6 +4166,215 @@ cmd_hex:
 
     ; Print "decimal -> 0xHEXSTRING"
     mov  dh, [sh_cur_row]
+    mov  dl, 5
+    mov  esi, .res
+    mov  bl, 0x0F
+    call sh_write_str
+    
+    mov  dl, 22
+    mov  esi, hex_buf
+    call sh_write_str
+    
+    call sh_inc_row
+    jmp  .hex_done
+
+.hex_no_arg:
+    mov  dh, [sh_cur_row]
+    mov  dl, 3
+    mov  esi, .usage
+    mov  bl, S_RD_BK
+    call sh_write_str
+    call sh_inc_row
+
+.hex_done:
+    ret
+.usage db "Usage: hex <number>", 0
+.res   db "Hexadecimal:   0x", 0
+
+; ================================================================
+;  CMD_HEXDUMP  — View Memory
+; ================================================================
+cmd_hexdump:
+    mov  dh, [sh_cur_row]
+    mov  dl, 2
+    mov  esi, str_hexdump_hdr
+    mov  bl, S_GR_BK
+    call sh_write_str
+    call sh_inc_row
+
+    mov  esi, sh_input_buf
+    add  esi, 7
+.skip_sp_hd:
+    cmp  byte [esi], ' '
+    jne  .check_arg_hd
+    inc  esi
+    jmp  .skip_sp_hd
+.check_arg_hd:
+    cmp  byte [esi], 0
+    je   .no_arg_hd
+    
+    ; Check "0x"
+    cmp  byte [esi], '0'
+    jne  .parse_dec_hd
+    cmp  byte [esi+1], 'x'
+    jne  .parse_dec_hd
+    add  esi, 2
+    call sh_parse_hex_esi
+    jmp  .start_dump_hd
+.parse_dec_hd:
+    call sh_parse_uint_esi
+.start_dump_hd:
+    mov  ebx, eax
+    mov  ecx, 4
+.dump_loop:
+    push ecx
+    mov edi, sh_output_buf
+    
+    ; Addr
+    mov eax, ebx
+    call hex_to_str8
+    mov al, ':'
+    stosb
+    mov al, ' '
+    stosb
+    
+    mov ecx, 16
+    mov esi, ebx
+.hex_bytes:
+    lodsb
+    call hex_to_str2
+    mov al, ' '
+    stosb
+    loop .hex_bytes
+    
+    mov al, ' '
+    stosb
+    
+    mov ecx, 16
+    mov esi, ebx
+.ascii_bytes:
+    lodsb
+    cmp al, 32
+    jl .dot_asc
+    cmp al, 126
+    jg .dot_asc
+    jmp .store_asc
+.dot_asc:
+    mov al, '.'
+.store_asc:
+    stosb
+    loop .ascii_bytes
+    
+    mov byte [edi], 0
+    
+    mov dh, [sh_cur_row]
+    mov dl, 1
+    mov esi, sh_output_buf
+    mov bl, 0x0F
+    call sh_write_str
+    call sh_inc_row
+    
+    add ebx, 16
+    pop ecx
+    loop .dump_loop
+    ret
+
+.no_arg_hd:
+    mov dh, [sh_cur_row]
+    mov dl, 3
+    mov esi, str_hd_usage
+    mov bl, 0x0C
+    call sh_write_str
+    call sh_inc_row
+    ret
+
+hex_to_str8:
+    push ecx
+    push eax
+    mov ecx, 8
+    add edi, 8
+    push edi
+.h8_loop:
+    dec edi
+    mov edx, eax
+    and edx, 0x0F
+    cmp dl, 10
+    jl .h8_digit
+    add dl, 'A' - 10
+    jmp .h8_store
+.h8_digit:
+    add dl, '0'
+.h8_store:
+    mov [edi], dl
+    shr eax, 4
+    loop .h8_loop
+    pop edi
+    pop eax
+    pop ecx
+    ret
+
+hex_to_str2:
+    push ecx
+    push eax
+    mov ecx, 2
+    add edi, 2
+    push edi
+.h2_loop:
+    dec edi
+    mov edx, eax
+    and edx, 0x0F
+    cmp dl, 10
+    jl .h2_digit
+    add dl, 'A' - 10
+    jmp .h2_store
+.h2_digit:
+    add dl, '0'
+.h2_store:
+    mov [edi], dl
+    shr eax, 4
+    loop .h2_loop
+    pop edi
+    pop eax
+    pop ecx
+    ret
+
+sh_parse_hex_esi:
+    xor eax, eax
+.hp_loop:
+    movzx ebx, byte [esi]
+    test bl, bl
+    jz .hp_done
+    cmp bl, ' '
+    je .hp_done
+    cmp bl, '0'
+    jl .hp_done
+    cmp bl, '9'
+    jle .hp_num
+    cmp bl, 'A'
+    jl .hp_done
+    cmp bl, 'F'
+    jle .hp_up
+    cmp bl, 'a'
+    jl .hp_done
+    cmp bl, 'f'
+    jle .hp_low
+    jmp .hp_done
+.hp_num:
+    sub bl, '0'
+    jmp .hp_acc
+.hp_up:
+    sub bl, 'A' - 10
+    jmp .hp_acc
+.hp_low:
+    sub bl, 'a' - 10
+.hp_acc:
+    shl eax, 4
+    add eax, ebx
+    inc esi
+    jmp .hp_loop
+.hp_done:
+    ret
+
     mov  dl, 3
     mov  esi, str_hex_pre
     mov  bl, S_BL_BK
@@ -5011,3 +5378,12 @@ morse_alpha:
     db "-..-", 0, 0 ; X
     db "-.--", 0, 0 ; Y
     db "--..", 0, 0 ; Z
+
+str_login_prompt db "Login Name: ", 0
+str_password     db "nano", 0
+str_login_fail   db "Access Denied. Try 'nano'", 0
+
+cmd_hexdump_s    db "hexdump", 0
+str_hexdump_hdr  db "=== Hex Dump ===", 0
+str_hd_usage     db "Usage: hexdump <address> (e.g. hexdump 0x1000)", 0
+sh_output_buf    times 100 db 0

@@ -14,6 +14,8 @@ kb_r_ptr    db 0
 kb_buffer   times 256 db 0
 
 tick_counter dd 0
+idle_ticks   dd 0
+rand_seed    dd 12345
 
 str_panic   db "=== CPU EXCEPTION HALT ===", 0
 str_isr_num db "Vector: ", 0
@@ -240,6 +242,49 @@ irq0:
     pushad
     inc dword [tick_counter]
 
+    ; --- Matrix Screensaver Logic ---
+    inc dword [idle_ticks]
+    cmp dword [idle_ticks], 546     ; ~30 seconds at 18.2Hz
+    jl  .skip_matrix
+    jne .do_matrix
+    
+    ; First tick of matrix: Clear screen to black
+    mov edi, 0xB8000
+    mov ecx, 2000
+    mov ax, 0x0020
+    rep stosw
+
+.do_matrix:
+    ; Update LCG Random
+    mov eax, [rand_seed]
+    imul eax, 1103515245
+    add eax, 12345
+    mov [rand_seed], eax
+    
+    ; Pick random VRAM offset (0 to 1999 words)
+    mov ebx, eax
+    shr ebx, 16          ; shift down
+    and ebx, 0x07FF      ; 0 to 2047
+    cmp ebx, 2000
+    jge .skip_matrix     ; skip if out of bounds
+    
+    ; Pick random hex digit
+    mov edx, eax
+    shr edx, 24
+    and edx, 0x0F
+    cmp dl, 10
+    jl  .hex_num
+    add dl, 'A' - 10
+    jmp .plot_char
+.hex_num:
+    add dl, '0'
+
+.plot_char:
+    mov byte [0xB8000 + ebx*2], dl
+    mov byte [0xB8000 + ebx*2 + 1], 0x0A  ; Bright Green
+
+.skip_matrix:
+
     ; Increment current task's tick_count
     mov eax, [current_task]
     imul eax, 64        ; TCB_SIZE
@@ -271,6 +316,9 @@ irq0:
 
 irq1:
     pushad
+    ; Matrix Screensaver: Reset idle timer on any keystroke
+    mov dword [idle_ticks], 0
+
     ; Visual Debug: Show 'K' at row 0, col 2
     mov byte [0xB8004], 'K'
     mov byte [0xB8005], 0x0E ; Yellow
