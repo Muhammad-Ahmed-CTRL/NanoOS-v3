@@ -319,10 +319,6 @@ irq1:
     ; Matrix Screensaver: Reset idle timer on any keystroke
     mov dword [idle_ticks], 0
 
-    ; Visual Debug: Show 'K' at row 0, col 2
-    mov byte [0xB8004], 'K'
-    mov byte [0xB8005], 0x0E ; Yellow
-    
     xor eax, eax
     in al, 0x60
     

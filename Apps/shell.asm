@@ -4491,6 +4491,7 @@ cmd_paint:
     imul eax, 160
     movzx ebx, byte [paint_col]
     imul ebx, 2
+    add  eax, ebx
     add  eax, SH_VRAM
     
     mov  cx, [eax]
@@ -4508,53 +4509,91 @@ cmd_paint:
     imul edx, 160
     movzx ebx, byte [paint_col]
     imul ebx, 2
+    add  edx, ebx
     add  edx, SH_VRAM
     mov  cx, [paint_orig]
     mov  [edx], cx
     
-    cmp  al, 0x01 ; Esc
+    cmp  al, 0x01 ; Esc (PS/2)
+    je   .paint_exit
+    cmp  al, 0x1B ; Esc (Serial)
     je   .paint_exit
     
-    cmp  al, 0x48 ; Up Arrow
+    cmp  al, 0x48 ; Up Arrow (PS/2)
     je   .move_up
-    cmp  al, 0x11 ; 'W' key scancode
+    cmp  al, 0x11 ; 'W' key scancode (PS/2)
+    je   .move_up
+    cmp  al, 0x77 ; 'w' (Serial)
+    je   .move_up
+    cmp  al, 0x57 ; 'W' (Serial)
     je   .move_up
     
-    cmp  al, 0x50 ; Down Arrow
+    cmp  al, 0x50 ; Down Arrow (PS/2)
     je   .move_down
-    cmp  al, 0x1F ; 'S' key scancode
+    cmp  al, 0x1F ; 'S' key scancode (PS/2)
+    je   .move_down
+    cmp  al, 0x73 ; 's' (Serial)
+    je   .move_down
+    cmp  al, 0x53 ; 'S' (Serial)
     je   .move_down
     
-    cmp  al, 0x4B ; Left Arrow
+    cmp  al, 0x4B ; Left Arrow (PS/2)
     je   .move_left
-    cmp  al, 0x1E ; 'A' key scancode
+    cmp  al, 0x1E ; 'A' key scancode (PS/2)
+    je   .move_left
+    cmp  al, 0x61 ; 'a' (Serial)
+    je   .move_left
+    cmp  al, 0x41 ; 'A' (Serial)
     je   .move_left
     
-    cmp  al, 0x4D ; Right Arrow
+    cmp  al, 0x4D ; Right Arrow (PS/2)
     je   .move_right
-    cmp  al, 0x20 ; 'D' key scancode
+    cmp  al, 0x20 ; 'D' key scancode (PS/2)
+    je   .move_right
+    cmp  al, 0x64 ; 'd' (Serial)
+    je   .move_right
+    cmp  al, 0x44 ; 'D' (Serial)
     je   .move_right
 
-    
-    cmp  al, 0x39 ; Spacebar
+    cmp  al, 0x39 ; Spacebar (PS/2)
+    je   .draw_block
+    cmp  al, 0x20 ; Spacebar (Serial)
     je   .draw_block
     
-    cmp  al, 0x2E ; 'C' key
+    cmp  al, 0x2E ; 'C' key (PS/2)
+    je   .clear_canvas
+    cmp  al, 0x63 ; 'c' (Serial)
+    je   .clear_canvas
+    cmp  al, 0x43 ; 'C' (Serial)
     je   .clear_canvas
     
-    cmp  al, 0x02 ; '1'
+    cmp  al, 0x02 ; '1' (PS/2)
     je   .color_1
-    cmp  al, 0x03 ; '2'
+    cmp  al, '1'  ; '1' (Serial)
+    je   .color_1
+    cmp  al, 0x03 ; '2' (PS/2)
     je   .color_2
-    cmp  al, 0x04 ; '3'
+    cmp  al, '2'  ; '2' (Serial)
+    je   .color_2
+    cmp  al, 0x04 ; '3' (PS/2)
     je   .color_3
-    cmp  al, 0x05 ; '4'
+    cmp  al, '3'  ; '3' (Serial)
+    je   .color_3
+    cmp  al, 0x05 ; '4' (PS/2)
     je   .color_4
-    cmp  al, 0x06 ; '5'
+    cmp  al, '4'  ; '4' (Serial)
+    je   .color_4
+    cmp  al, 0x06 ; '5' (PS/2)
     je   .color_5
-    cmp  al, 0x07 ; '6'
+    cmp  al, '5'  ; '5' (Serial)
+    je   .color_5
+    cmp  al, 0x07 ; '6' (PS/2)
     je   .color_6
-    cmp  al, 0x08 ; '7'
+    cmp  al, '6'  ; '6' (Serial)
+    je   .color_6
+    cmp  al, 0x08 ; '7' (PS/2)
+    je   .color_7
+    cmp  al, '7'  ; '7' (Serial)
     je   .color_7
     
     jmp  .paint_loop
@@ -4607,6 +4646,7 @@ cmd_paint:
     imul edx, 160
     movzx ebx, byte [paint_col]
     imul ebx, 2
+    add  edx, ebx
     add  edx, SH_VRAM
     mov  byte [edx], 219 ; Solid Block
     mov  bl, [paint_color]
@@ -4715,7 +4755,9 @@ cmd_clock:
     call sys_delay
     
     call sys_get_scancode_noblock
-    cmp  al, 0x01
+    cmp  al, 0x01 ; Esc (PS/2)
+    je   .clock_exit
+    cmp  al, 0x1B ; Esc (Serial)
     je   .clock_exit
     jmp  .clock_loop
 .clock_exit:
@@ -4748,12 +4790,13 @@ draw_clock_digit:
     imul ebx, 2
     add  eax, ebx
     add  eax, SH_VRAM
+    mov  edi, eax           ; EDI is our dedicated VRAM pointer!
     mov  ecx, 3
 .char_loop:
     lodsb
-    mov  [eax], al
-    mov  byte [eax+1], 0x0B
-    add  eax, 2
+    mov  [edi], al
+    mov  byte [edi+1], 0x0B
+    add  edi, 2
     loop .char_loop
     pop  edx
     pop  esi
