@@ -527,50 +527,50 @@ cmd_help:
     mov  dh, [sh_cur_row]
     mov  dl, 2
     mov  esi, sh_sys_1
-    mov  bl, S_BL_BK
-    call sh_write_str
+    mov  bl, 0x0A
+    call sh_write_str_help
     mov  dl, 25
     mov  esi, sh_sys_2
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 50
     mov  esi, sh_sys_3
-    call sh_write_str
+    call sh_write_str_help
     call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
     mov  esi, sh_sys_4
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 25
     mov  esi, sh_sys_5
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 50
     mov  esi, sh_sys_6
-    call sh_write_str
+    call sh_write_str_help
     call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
     mov  esi, sh_sys_7
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 25
     mov  esi, sh_sys_8
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 50
     mov  esi, sh_sys_9
-    call sh_write_str
+    call sh_write_str_help
     call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
     mov  esi, sh_sys_10
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 25
     mov  esi, sh_sys_11
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 50
     mov  esi, sh_sys_12
-    call sh_write_str
+    call sh_write_str_help
     call sh_inc_row
     call sh_inc_row
 
@@ -585,47 +585,47 @@ cmd_help:
     mov  dh, [sh_cur_row]
     mov  dl, 2
     mov  esi, sh_file_1
-    mov  bl, S_BL_BK
-    call sh_write_str
+    mov  bl, 0x0B
+    call sh_write_str_help
     mov  dl, 25
     mov  esi, sh_file_2
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 50
     mov  esi, sh_file_3
-    call sh_write_str
+    call sh_write_str_help
     call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
     mov  esi, sh_file_4
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 25
     mov  esi, sh_file_5
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 50
     mov  esi, sh_file_6
-    call sh_write_str
+    call sh_write_str_help
     call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
     mov  esi, sh_file_7
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 25
     mov  esi, sh_file_8
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 50
     mov  esi, sh_file_9
-    call sh_write_str
+    call sh_write_str_help
     call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
     mov  esi, sh_file_10
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 25
     mov  esi, sh_file_11
-    call sh_write_str
+    call sh_write_str_help
     call sh_inc_row
     call sh_inc_row
 
@@ -640,59 +640,59 @@ cmd_help:
     mov  dh, [sh_cur_row]
     mov  dl, 2
     mov  esi, sh_app_1
-    mov  bl, S_BL_BK
-    call sh_write_str
+    mov  bl, 0x0E
+    call sh_write_str_help
     mov  dl, 25
     mov  esi, sh_app_2
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 50
     mov  esi, sh_app_3
-    call sh_write_str
+    call sh_write_str_help
     call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
     mov  esi, sh_app_4
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 25
     mov  esi, sh_app_5
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 50
     mov  esi, sh_app_6
-    call sh_write_str
+    call sh_write_str_help
     call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
     mov  esi, sh_app_7
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 25
     mov  esi, sh_app_8
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 50
     mov  esi, sh_app_9
-    call sh_write_str
+    call sh_write_str_help
     call sh_inc_row
 
     mov  dh, [sh_cur_row]
     mov  dl, 2
     mov  esi, sh_app_10
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 25
     mov  esi, sh_app_11
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 50
     mov  esi, sh_app_12
-    call sh_write_str
+    call sh_write_str_help
     call sh_inc_row
     
     mov  dh, [sh_cur_row]
     mov  dl, 2
     mov  esi, sh_app_13
-    call sh_write_str
+    call sh_write_str_help
     mov  dl, 25
     mov  esi, sh_app_14
-    call sh_write_str
+    call sh_write_str_help
     call sh_inc_row
     
     ret
@@ -1670,6 +1670,50 @@ sh_write_str:
     add   edi, 2
     jmp   .ws_loop
 
+.ws_done:
+    popad
+    ret
+
+; ================================================================
+;  SH_WRITE_STR_HELP
+;  Input: ESI = string, DH = row, DL = col, BL = command color
+; ================================================================
+sh_write_str_help:
+    pushad
+    cld
+    mov  edi, 0xB8000
+    movzx eax, dh
+    push  eax
+    shl   eax, 7
+    add   edi, eax
+    pop   eax
+    shl   eax, 5
+    add   edi, eax
+
+    movzx ecx, dl
+    shl   ecx, 1
+    add   edi, ecx
+
+    mov   ch, bl        ; CH = Command Color
+.ws_loop:
+    lodsb
+    test  al, al
+    jz    .ws_done
+    cmp   al, '-'
+    jne   .check_out
+    mov   ch, 0x07      ; Change color to Light Gray for description
+.check_out:
+    mov   dx, 0x3F8
+    out   dx, al
+    cmp   al, 10
+    jne   .vram
+    mov   al, 13
+    out   dx, al
+.vram:
+    mov   byte [edi], al
+    mov   byte [edi+1], ch
+    add   edi, 2
+    jmp   .ws_loop
 .ws_done:
     popad
     ret
