@@ -5634,9 +5634,9 @@ show_snake_score:
 
 snake_delay:
     pushad
-    ; We want a delay of about 5 ticks
+    ; We want a delay of about 3 ticks
     mov  eax, [tick_counter]
-    add  eax, 5
+    add  eax, 3
 .wait:
     call sys_yield
     cmp  [tick_counter], eax
