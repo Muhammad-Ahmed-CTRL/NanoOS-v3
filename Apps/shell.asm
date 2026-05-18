@@ -4517,12 +4517,24 @@ cmd_paint:
     
     cmp  al, 0x48 ; Up Arrow
     je   .move_up
+    cmp  al, 0x11 ; 'W' key scancode
+    je   .move_up
+    
     cmp  al, 0x50 ; Down Arrow
     je   .move_down
+    cmp  al, 0x1F ; 'S' key scancode
+    je   .move_down
+    
     cmp  al, 0x4B ; Left Arrow
     je   .move_left
+    cmp  al, 0x1E ; 'A' key scancode
+    je   .move_left
+    
     cmp  al, 0x4D ; Right Arrow
     je   .move_right
+    cmp  al, 0x20 ; 'D' key scancode
+    je   .move_right
+
     
     cmp  al, 0x39 ; Spacebar
     je   .draw_block
@@ -5952,7 +5964,7 @@ melody_durations:
     dd 0
 
 cmd_paint_s      db "paint", 0
-str_paint_help   db "Paint: Arrows=Move, 1-7=Color, Space=Paint, C=Clear, Esc=Exit", 0
+str_paint_help   db "Paint: Arrows/WASD=Move, 1-7=Color, Space=Paint, C=Clear, Esc=Exit", 0
 paint_row        db 0
 paint_col        db 0
 paint_color      db 0
