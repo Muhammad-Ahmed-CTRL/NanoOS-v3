@@ -40,7 +40,7 @@ An educational, bare-metal 32-bit operating system built completely from scratch
    ```
 3. **Best way to run natively on Windows (with Sound enabled!)**:
    ```powershell
-   qemu-system-i386.exe -fda nanoos.img -boot a -m 4M -name "NanoOS v3.0" -audiodev dsound,id=snd0 -machine pc,pcspk-audiodev=snd0
+   & "C:\Program Files\qemu\qemu-system-i386.exe" -fda c:\Users\muham\Downloads\NanoOS\NanoOS\nanoos.img -boot a -m 4M -name "NanoOS v3.0" -audiodev dsound,id=snd0 -machine pc,pcspk-audiodev=snd0 2>&1
    ```
    *(Alternatively, use `.\build.ps1 run` to launch via WSL).*
 4. To clean up build artifacts:
