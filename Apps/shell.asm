@@ -87,6 +87,7 @@ shell_main:
 
 .login_ok:
     call cmd_clear
+    call cmd_bootanimation
 
     ; Show welcome message
     mov  dh, 3
@@ -446,6 +447,26 @@ sh_dispatch:
     mov  edi, cmd_hexdump_s
     call sh_is_cmd
     je   cmd_hexdump
+
+    mov  esi, sh_input_buf
+    mov  edi, cmd_play_s
+    call sh_is_cmd
+    je   cmd_play
+
+    mov  esi, sh_input_buf
+    mov  edi, cmd_paint_s
+    call sh_is_cmd
+    je   cmd_paint
+
+    mov  esi, sh_input_buf
+    mov  edi, cmd_clock_s
+    call sh_is_cmd
+    je   cmd_clock
+
+    mov  esi, sh_input_buf
+    mov  edi, cmd_bootanim_s
+    call sh_is_cmd
+    je   cmd_bootanimation
 
     ; Unknown command - now at the end
     mov  esi, sh_input_buf
@@ -1451,7 +1472,27 @@ sh_read_line:
 
 
 ; ================================================================
+;  SYS_DELAY
+; ================================================================
+sys_delay:
+    ; Input: ECX = ticks to delay
+    push eax
+    push ebx
+    mov  eax, [tick_counter]
+    add  eax, ecx
+.wait:
+    mov  ebx, [tick_counter]
+    cmp  ebx, eax
+    jl   .wait
+    pop  ebx
+    pop  eax
+    ret
+
+
+
+; ================================================================
 ;  SH_READ_PASSWORD
+
 ; ================================================================
 sh_read_password:
     push eax
@@ -4375,6 +4416,512 @@ sh_parse_hex_esi:
 .hp_done:
     ret
 
+; ================================================================
+;  CMD_PLAY  — sound engine demo
+; ================================================================
+cmd_play:
+    pushad
+    mov  esi, melody_notes
+    mov  edi, melody_durations
+.play_loop:
+    lodsd                       ; EAX = Frequency
+    test eax, eax
+    jz   .play_done
+    
+    push esi
+    mov  esi, edi
+    lodsd                       ; EAX = Duration
+    mov  ebx, eax
+    mov  edi, esi
+    pop  esi
+    
+    cmp  eax, 0
+    je   .rest
+    
+    ; Program PIT
+    push eax
+    mov  al, 0xB6
+    out  0x43, al
+    pop  eax
+    push eax
+    xor  edx, edx
+    mov  ecx, eax               ; freq
+    mov  eax, 1193180
+    div  ecx                     ; EAX = 1193180 / freq
+    out  0x42, al
+    mov  al, ah
+    out  0x42, al
+    
+    in   al, 0x61
+    or   al, 0x03
+    out  0x61, al
+    pop  eax
+.rest:
+    mov  ecx, ebx
+    call sys_delay
+    
+    in   al, 0x61
+    and  al, 0xFC
+    out  0x61, al
+    
+    mov  ecx, 1
+    call sys_delay
+    jmp  .play_loop
+.play_done:
+    popad
+    ret
+
+; ================================================================
+;  CMD_PAINT  — Text-mode interactive painter
+; ================================================================
+cmd_paint:
+    call cmd_clear
+    mov  dh, 24
+    mov  dl, 1
+    mov  esi, str_paint_help
+    mov  bl, 0x0E ; Yellow
+    call sh_write_str
+    
+    mov  byte [paint_row], 12
+    mov  byte [paint_col], 40
+    mov  byte [paint_color], 0x0A ; Default Green
+    
+.paint_loop:
+    movzx eax, byte [paint_row]
+    imul eax, 160
+    movzx ebx, byte [paint_col]
+    imul ebx, 2
+    add  eax, SH_VRAM
+    
+    mov  cx, [eax]
+    mov  [paint_orig], cx
+    
+    mov  byte [eax], '+'
+    mov  byte [eax+1], 0x0F ; White
+    
+.wait_key:
+    call sys_get_scancode
+    test al, al
+    jz   .wait_key
+    
+    movzx edx, byte [paint_row]
+    imul edx, 160
+    movzx ebx, byte [paint_col]
+    imul ebx, 2
+    add  edx, SH_VRAM
+    mov  cx, [paint_orig]
+    mov  [edx], cx
+    
+    cmp  al, 0x01 ; Esc
+    je   .paint_exit
+    
+    cmp  al, 0x48 ; Up Arrow
+    je   .move_up
+    cmp  al, 0x50 ; Down Arrow
+    je   .move_down
+    cmp  al, 0x4B ; Left Arrow
+    je   .move_left
+    cmp  al, 0x4D ; Right Arrow
+    je   .move_right
+    
+    cmp  al, 0x39 ; Spacebar
+    je   .draw_block
+    
+    cmp  al, 0x2E ; 'C' key
+    je   .clear_canvas
+    
+    cmp  al, 0x02 ; '1'
+    je   .color_1
+    cmp  al, 0x03 ; '2'
+    je   .color_2
+    cmp  al, 0x04 ; '3'
+    je   .color_3
+    cmp  al, 0x05 ; '4'
+    je   .color_4
+    cmp  al, 0x06 ; '5'
+    je   .color_5
+    cmp  al, 0x07 ; '6'
+    je   .color_6
+    cmp  al, 0x08 ; '7'
+    je   .color_7
+    
+    jmp  .paint_loop
+
+.color_1:
+    mov byte [paint_color], 0x09
+    jmp .paint_loop
+.color_2:
+    mov byte [paint_color], 0x0A
+    jmp .paint_loop
+.color_3:
+    mov byte [paint_color], 0x0B
+    jmp .paint_loop
+.color_4:
+    mov byte [paint_color], 0x0C
+    jmp .paint_loop
+.color_5:
+    mov byte [paint_color], 0x0D
+    jmp .paint_loop
+.color_6:
+    mov byte [paint_color], 0x0E
+    jmp .paint_loop
+.color_7:
+    mov byte [paint_color], 0x0F
+    jmp .paint_loop
+
+.move_up:
+    cmp  byte [paint_row], 1
+    jbe  .paint_loop
+    dec  byte [paint_row]
+    jmp  .paint_loop
+.move_down:
+    cmp  byte [paint_row], 22
+    jae  .paint_loop
+    inc  byte [paint_row]
+    jmp  .paint_loop
+.move_left:
+    cmp  byte [paint_col], 0
+    jbe  .paint_loop
+    dec  byte [paint_col]
+    jmp  .paint_loop
+.move_right:
+    cmp  byte [paint_col], 79
+    jae  .paint_loop
+    inc  byte [paint_col]
+    jmp  .paint_loop
+
+.draw_block:
+    movzx edx, byte [paint_row]
+    imul edx, 160
+    movzx ebx, byte [paint_col]
+    imul ebx, 2
+    add  edx, SH_VRAM
+    mov  byte [edx], 219 ; Solid Block
+    mov  bl, [paint_color]
+    mov  byte [edx+1], bl
+    mov  cx, [edx]
+    mov  [paint_orig], cx
+    jmp  .paint_loop
+
+.clear_canvas:
+    call cmd_clear
+    mov  dh, 24
+    mov  dl, 1
+    mov  esi, str_paint_help
+    mov  bl, 0x0E
+    call sh_write_str
+    jmp  .paint_loop
+
+.paint_exit:
+    call cmd_clear
+    ret
+
+; ================================================================
+;  CMD_CLOCK  — Large Digital Clock
+; ================================================================
+cmd_clock:
+    call cmd_clear
+    mov  dh, 24
+    mov  dl, 20
+    mov  esi, str_clock_help
+    mov  bl, 0x0E
+    call sh_write_str
+.clock_loop:
+    mov  al, 0x00
+    out  0x70, al
+    in   al, 0x71
+    mov  [rtc_s], al
+    
+    mov  al, 0x02
+    out  0x70, al
+    in   al, 0x71
+    mov  [rtc_m], al
+    
+    mov  al, 0x04
+    out  0x70, al
+    in   al, 0x71
+    mov  [rtc_h], al
+    
+    movzx eax, byte [rtc_h]
+    call bcd_to_dec
+    mov  [clk_h], al
+    
+    movzx eax, byte [rtc_m]
+    call bcd_to_dec
+    mov  [clk_m], al
+    
+    movzx eax, byte [rtc_s]
+    call bcd_to_dec
+    mov  [clk_s], al
+    
+    ; Draw hours
+    movzx eax, byte [clk_h]
+    mov  dl, 10
+    div  dl
+    push eax
+    movzx eax, al
+    mov  dl, 20
+    call draw_clock_digit
+    pop  eax
+    movzx eax, ah
+    mov  dl, 24
+    call draw_clock_digit
+    
+    mov  dl, 28
+    call draw_clock_colon
+    
+    ; Draw minutes
+    movzx eax, byte [clk_m]
+    mov  dl, 10
+    div  dl
+    push eax
+    movzx eax, al
+    mov  dl, 32
+    call draw_clock_digit
+    pop  eax
+    movzx eax, ah
+    mov  dl, 36
+    call draw_clock_digit
+    
+    mov  dl, 40
+    call draw_clock_colon
+    
+    ; Draw seconds
+    movzx eax, byte [clk_s]
+    mov  dl, 10
+    div  dl
+    push eax
+    movzx eax, al
+    mov  dl, 44
+    call draw_clock_digit
+    pop  eax
+    movzx eax, ah
+    mov  dl, 48
+    call draw_clock_digit
+    
+    mov  ecx, 5
+    call sys_delay
+    
+    call sys_get_scancode_noblock
+    cmp  al, 0x01
+    je   .clock_exit
+    jmp  .clock_loop
+.clock_exit:
+    call cmd_clear
+    ret
+
+bcd_to_dec:
+    mov  ah, al
+    shr  ah, 4
+    and  al, 0x0F
+    movzx ebx, ah
+    imul  ebx, 10
+    movzx eax, al
+    add   eax, ebx
+    ret
+
+draw_clock_digit:
+    pushad
+    imul eax, 15
+    lea  esi, [clock_digits + eax]
+    mov  ecx, 5
+    mov  dh, 10
+.row_loop:
+    push ecx
+    push esi
+    push edx
+    movzx eax, dh
+    imul eax, 160
+    movzx ebx, dl
+    imul ebx, 2
+    add  eax, ebx
+    add  eax, SH_VRAM
+    mov  ecx, 3
+.char_loop:
+    lodsb
+    mov  [eax], al
+    mov  byte [eax+1], 0x0B
+    add  eax, 2
+    loop .char_loop
+    pop  edx
+    pop  esi
+    add  esi, 3
+    inc  dh
+    pop  ecx
+    loop .row_loop
+    popad
+    ret
+
+draw_clock_colon:
+    pushad
+    mov  ecx, 5
+    mov  dh, 10
+.col_loop:
+    movzx eax, dh
+    imul eax, 160
+    movzx ebx, dl
+    imul ebx, 2
+    add  eax, ebx
+    add  eax, SH_VRAM
+    cmp  dh, 11
+    je   .draw_dot
+    cmp  dh, 13
+    je   .draw_dot
+    mov  byte [eax], ' '
+    jmp  .done_dot
+.draw_dot:
+    mov  byte [eax], 219
+    mov  byte [eax+1], 0x0C
+.done_dot:
+    inc  dh
+    loop .col_loop
+    popad
+    ret
+
+; ================================================================
+;  CMD_BOOTANIMATION  — Splash / Loading bar
+; ================================================================
+cmd_bootanimation:
+    call cmd_clear
+    mov  dh, 8
+    mov  dl, 25
+    mov  esi, str_boot_title
+    mov  bl, 0x0B
+    call sh_write_str
+    
+    mov  dh, 9
+    mov  dl, 25
+    mov  esi, str_boot_subtitle
+    mov  bl, 0x0E
+    call sh_write_str
+    
+    mov  dh, 12
+    mov  dl, 25
+    mov  esi, str_load_box
+    mov  bl, 0x0F
+    call sh_write_str
+    
+    mov  ecx, 30
+    mov  byte [boot_stage], 0
+.load_loop:
+    push ecx
+    movzx eax, byte [boot_stage]
+    imul eax, 100
+    mov  ebx, 30
+    xor  edx, edx
+    div  ebx
+    mov  [boot_pct], eax
+    
+    mov  edi, boot_pct_str
+    call int_to_str_3digit
+    
+    mov  dh, 12
+    mov  dl, 58
+    mov  esi, boot_pct_str
+    mov  bl, 0x0A
+    call sh_write_str
+    
+    movzx eax, byte [boot_stage]
+    add  eax, 26
+    mov  dl, al
+    mov  dh, 12
+    mov  edi, 0xB8000
+    movzx ebx, dh
+    imul ebx, 160
+    movzx edx, dl
+    imul edx, 2
+    add  ebx, edx
+    add  ebx, edi
+    mov  byte [ebx], 219
+    mov  byte [ebx+1], 0x0B
+    
+    movzx eax, byte [boot_stage]
+    cmp  eax, 5
+    jl   .msg1
+    cmp  eax, 12
+    jl   .msg2
+    cmp  eax, 20
+    jl   .msg3
+    cmp  eax, 26
+    jl   .msg4
+    jmp  .msg5
+.msg1:
+    mov  esi, str_load_msg1
+    jmp  .print_msg
+.msg2:
+    mov  esi, str_load_msg2
+    jmp  .print_msg
+.msg3:
+    mov  esi, str_load_msg3
+    jmp  .print_msg
+.msg4:
+    mov  esi, str_load_msg4
+    jmp  .print_msg
+.msg5:
+    mov  esi, str_load_msg5
+.print_msg:
+    mov  edi, SH_VRAM + 14*160
+    mov  ecx, 80
+.wipe_msg:
+    mov  word [edi], 0x0720
+    add  edi, 2
+    loop .wipe_msg
+    
+    mov  dh, 14
+    mov  dl, 25
+    mov  bl, 0x0E
+    call sh_write_str
+    
+    mov  ecx, 2
+    call sys_delay
+    
+    inc  byte [boot_stage]
+    pop  ecx
+    dec  ecx
+    jnz  .load_loop
+
+    
+    mov  dh, 14
+    mov  dl, 25
+    mov  esi, str_load_done
+    mov  bl, 0x0A
+    call sh_write_str
+    
+    mov  ecx, 10
+    call sys_delay
+    call cmd_clear
+    ret
+
+int_to_str_3digit:
+    pushad
+    mov  ecx, 3
+    add  edi, 3
+    mov  byte [edi], '%'
+    dec  edi
+.i3_loop:
+    xor  edx, edx
+    mov  ebx, 10
+    div  ebx
+    add  dl, '0'
+    mov  [edi], dl
+    dec  edi
+    loop .i3_loop
+    
+    mov  edi, [esp + 4]
+    cmp  byte [edi], '0'
+    jne  .check_second
+    mov  byte [edi], ' '
+.check_second:
+    cmp  byte [edi], ' '
+    jne  .check_zero
+    cmp  byte [edi+1], '0'
+    jne  .check_zero
+    mov  byte [edi+1], ' '
+.check_zero:
+    popad
+    ret
+
+
     mov  dl, 3
     mov  esi, str_hex_pre
     mov  bl, S_BL_BK
@@ -5387,3 +5934,58 @@ cmd_hexdump_s    db "hexdump", 0
 str_hexdump_hdr  db "=== Hex Dump ===", 0
 str_hd_usage     db "Usage: hexdump <address> (e.g. hexdump 0x1000)", 0
 sh_output_buf    times 100 db 0
+
+cmd_play_s       db "play", 0
+melody_notes:
+    dd 392, 392, 392
+    dd 523, 784
+    dd 698, 659, 587, 1046, 784
+    dd 698, 659, 587, 1046, 784
+    dd 698, 659, 698, 587
+    dd 0
+melody_durations:
+    dd 4, 4, 4
+    dd 12, 12
+    dd 4, 4, 4, 12, 6
+    dd 4, 4, 4, 12, 6
+    dd 4, 4, 4, 12
+    dd 0
+
+cmd_paint_s      db "paint", 0
+str_paint_help   db "Paint: Arrows=Move, 1-7=Color, Space=Paint, C=Clear, Esc=Exit", 0
+paint_row        db 0
+paint_col        db 0
+paint_color      db 0
+paint_orig       dw 0
+
+cmd_clock_s      db "clock", 0
+str_clock_help   db "Giant Digital Clock. Press ESC to Exit.", 0
+clk_h            db 0
+clk_m            db 0
+clk_s            db 0
+clock_digits:
+    db 219,219,219, 219,' ',219, 219,' ',219, 219,' ',219, 219,219,219 ; 0
+    db ' ',' ',219, ' ',' ',219, ' ',' ',219, ' ',' ',219, ' ',' ',219 ; 1
+    db 219,219,219, ' ',' ',219, 219,219,219, 219,' ',' ', 219,219,219 ; 2
+    db 219,219,219, ' ',' ',219, 219,219,219, ' ',' ',219, 219,219,219 ; 3
+    db 219,' ',219, 219,' ',219, 219,219,219, ' ',' ',219, ' ',' ',219 ; 4
+    db 219,219,219, 219,' ',' ', 219,219,219, ' ',' ',219, 219,219,219 ; 5
+    db 219,219,219, 219,' ',' ', 219,219,219, 219,' ',219, 219,219,219 ; 6
+    db 219,219,219, ' ',' ',219, ' ',' ',219, ' ',' ',219, ' ',' ',219 ; 7
+    db 219,219,219, 219,' ',219, 219,219,219, 219,' ',219, 219,219,219 ; 8
+    db 219,219,219, 219,' ',219, 219,219,219, ' ',' ',219, 219,219,219 ; 9
+
+cmd_bootanim_s   db "bootanim", 0
+str_boot_title   db "   _  __                     ____  ____   ", 0
+str_boot_subtitle db "  / |/ /__ ____  ___  ___   / __ \/ __/   ", 0
+str_load_box     db "[                              ] 000%", 0
+str_load_msg1    db "Loading system descriptors...", 0
+str_load_msg2    db "Mounting virtual filesystem...", 0
+str_load_msg3    db "Enabling GDT & IDT interrupt gates...", 0
+str_load_msg4    db "Initializing hardware serial chat...", 0
+str_load_msg5    db "Launching Interactive Shell...", 0
+str_load_done    db "System booted successfully! Enjoy.", 0
+boot_stage       db 0
+boot_pct         dd 0
+boot_pct_str     times 8 db 0
+
