@@ -83,6 +83,9 @@ function Do-Build {
 
     $fs.Close()
 
+    Write-Host "[ISO]   Generating bootable El Torito ISO..." -ForegroundColor Cyan
+    & python make_iso.py
+
     Write-Host ""
     Write-Host "  +--------------------------------------+" -ForegroundColor Green
     Write-Host "  |   NanoOS build complete!             |" -ForegroundColor Green
