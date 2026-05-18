@@ -1260,34 +1260,36 @@ cmd_game:
     jmp  .gwrap
 
 .gwin:
-    call cmd_clear
-    mov  dh, 5
-    mov  dl, 20
+    call sh_inc_row
+    mov  dh, [sh_cur_row]
+    mov  dl, 5
     mov  esi, sh_game_win1
     mov  bl, S_GR_BK
     call sh_write_str
 
-    mov  dh, 6
-    mov  dl, 20
+    call sh_inc_row
+    mov  dh, [sh_cur_row]
+    mov  dl, 5
     mov  esi, sh_game_win2
     mov  bl, S_GR_BK
     call sh_write_str
 
     ; print guess count
     mov  eax, [game_guesses]
-    mov  dh, 6
-    mov  dl, 46
+    mov  dh, [sh_cur_row]
+    mov  dl, 22
     mov  bl, S_GR_BK
     call sh_print_int
 
-    mov  dh, 8
-    mov  dl, 20
+    call sh_inc_row
+    mov  dh, [sh_cur_row]
+    mov  dl, 5
     mov  esi, sh_game_again
     mov  bl, S_BL_BK
     call sh_write_str
 
-    mov  dh, 8
-    mov  dl, 44
+    mov  dh, [sh_cur_row]
+    mov  dl, 24
     mov  [sh_cursor_row], dh
     mov  [sh_cursor_col], dl
     call sh_hw_cursor
@@ -5100,10 +5102,10 @@ cmd_morse:
     sub  al, 'A'
     movzx eax, al
     imul eax, 6          ; each entry is 6 bytes
-    lea  ebx, [morse_alpha]
-    add  ebx, eax
+    lea  edi, [morse_alpha]
+    add  edi, eax
     mov  dh, [sh_cur_row]
-    mov  esi, ebx
+    mov  esi, edi
     call sh_write_str
     ; print space between codes
     mov  byte [morse_space], ' '
