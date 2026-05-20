@@ -9,29 +9,29 @@ Read your respective sections carefully. The provided Q&A covers the exact quest
 
 ---
 
-## 1. Sami's Section (Foundations & Booting)
-**Role:** Boot Process & Build System Explainer
-**Focus:** High-level concepts, Real Mode, and how the OS is compiled. These are the easiest topics to explain and don't require deep code memorization.
+## 1. Sami's Section (Foundations & Utility Apps)
+**Role:** Boot Process, Build System & Utility Apps Developer
+**Focus:** Bootloader concepts, Build pipeline, and coding simple interactive apps (Calculator, Guessing Game, PC Speaker Sound).
 
 ### What Sami needs to explain in the Viva:
-*"My contribution focused on the initial boot sequence of the OS and the build pipeline. I worked on understanding how the BIOS hands over control to our code, how we use 16-bit Real Mode to read from the disk, and how our PowerShell script uses NASM to compile the raw binaries and create a bootable floppy/ISO image."*
+*"My contribution had two parts. First, I focused on the initial boot sequence of the OS, understanding how the BIOS hands over control to our code, and how our script compiles the raw binaries into an ISO. Second, I programmed several utility applications including the Calculator, the Number Guessing game, and the PC Speaker sound driver, managing user input and hardware ports directly through assembly code."*
 
 ### Viva Q&A for Sami:
 
 **Q: What is a Bootloader and where is it located?**
 **Sami:** A bootloader is the first piece of code that runs when the computer turns on. Ours is a Stage-1 bootloader located in the Master Boot Record (MBR) at the very first sector of the disk.
 
-**Q: Why is the bootloader exactly 512 bytes, and what is the boot signature?**
-**Sami:** The BIOS specifically looks for a 512-byte sector. To prove it is bootable, the very last two bytes of this sector must be the signature `0x55` and `0xAA` (`0xAA55` in little-endian).
+**Q: How does the Calculator app work in your code?**
+**Sami:** In the `cmd_calc` code, I read the user's input string from the shell buffer. I use a custom `sh_parse_uint` function to parse the first integer, then I read the operator character (`+`, `-`, `*`, `/`), and then parse the second integer. I then use standard assembly math instructions like `add`, `sub`, `imul`, and `idiv` to compute the result, and print it back to the screen using `sh_print_int`.
 
-**Q: What is Real Mode?**
-**Sami:** Real Mode is a 16-bit legacy mode that all x86 processors start in for backward compatibility. In this mode, we have access to BIOS interrupts but can only access 1 MB of memory.
+**Q: How did you generate random numbers for the Guessing Game?**
+**Sami:** True randomness is hard in bare-metal assembly without an OS. In my code, I read the current value of the Programmable Interval Timer (PIT) directly from hardware port `0x40` using the `in al, 0x40` instruction. Because this timer ticks millions of times a second, reading it at the exact moment the user runs the game provides an unpredictable seed. I then use the `div` instruction to modulo the number by 99, giving me a random target between 1 and 99.
 
-**Q: How did you load the rest of the OS from the disk?**
-**Sami:** We used BIOS Interrupt `INT 0x13` (Disk Services). Specifically, we used `AH = 0x02` to read sectors from the floppy disk into memory so we could jump to the kernel.
+**Q: How did you program the PC Speaker to play sound in the `play` command?**
+**Sami:** The PC speaker is controlled by sending bytes directly to hardware ports. First, I send a configuration byte to the PIT command port `0x43`. Then I calculate the frequency divisor for a specific musical note and send the lower and upper bytes to port `0x42`. Finally, I turn the physical speaker on by setting specific bits (bits 0 and 1) on the system control port `0x61`.
 
 **Q: How is the OS compiled and tested?**
-**Sami:** We wrote a custom `build.ps1` script. It uses **NASM** (Netwide Assembler) to compile our `.asm` files into raw binary (`.bin`) format. Then, it stitches them together into a 1.44MB virtual floppy image (`nanoos.img`) and an El Torito `nanoos.iso`. We test it using the QEMU emulator.
+**Sami:** We wrote a `build.ps1` script. It uses **NASM** to compile our `.asm` files into raw binary (`.bin`) format. Then, it stitches them together into a 1.44MB floppy image (`nanoos.img`) and an El Torito `nanoos.iso`. We test it using the QEMU emulator.
 
 ---
 
@@ -59,11 +59,11 @@ Read your respective sections carefully. The provided Q&A covers the exact quest
 ---
 
 ## 3. Ahmed's Section (Shell & App Systems)
-**Role:** Lead Shell & App Systems Developer
-**Focus:** User input, Command Parsing, and Application Logic (Games, Calculator).
+**Role:** Lead Shell & Advanced App Systems Developer
+**Focus:** User input, Command Parsing, and Advanced Visual Application Logic (Snake, Paint).
 
 ### What Ahmed needs to explain in the Viva:
-*"I developed the interactive shell and the built-in applications. My work involved creating a ring buffer to safely capture keyboard scancodes, translating those scancodes to ASCII, parsing user commands, and writing the logic for our apps like the Number Guessing game and the Snake game."*
+*"I developed the interactive shell and the advanced visual applications. My work involved creating a ring buffer to safely capture keyboard scancodes, translating those scancodes to ASCII, parsing user commands, and writing the logic for our complex graphical apps like the pixel Paint app and the interactive Snake game."*
 
 ### Viva Q&A for Ahmed:
 
@@ -73,8 +73,8 @@ Read your respective sections carefully. The provided Q&A covers the exact quest
 **Q: How does the command parser work?**
 **Ahmed:** Once the user presses Enter, the string is null-terminated. I wrote a custom `sh_strcmp` (string compare) function in assembly to compare the user's input against a predefined list of commands. If a match is found, it uses a `je` (jump if equal) instruction to jump to the code for that specific app.
 
-**Q: How did you generate random numbers for the Guessing Game?**
-**Ahmed:** True randomness is hard in bare-metal assembly. I read the current value of the Programmable Interval Timer (PIT) from port `0x40`. Since the timer is constantly ticking at a high frequency, reading it at the exact millisecond the user launches the game provides a highly unpredictable "random" seed. I use the `div` instruction to modulo this number by 99 to get a target between 1 and 99.
+**Q: How did you program the interactive Paint application?**
+**Ahmed:** The `paint` app treats the VGA text buffer (`0xB8000`) as a pixel canvas. Instead of printing characters, I print the block character (`0xDB`) and dynamically modify the color attribute byte based on user input. I read scancodes without blocking (`sys_get_scancode_noblock`) to move a blinking hardware cursor across the screen using the arrow keys, allowing the user to "draw" with different colors by pressing number keys.
 
 **Q: How did you manage delays in the Snake game?**
 **Ahmed:** I utilized the system timer (IRQ0) which ticks constantly. I created a `tick_counter` variable in memory. For a delay, I read the current tick, add my target delay (e.g., 3 ticks for fast movement), and loop using a `sys_yield` call until the global counter surpasses my target.
