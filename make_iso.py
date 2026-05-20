@@ -18,15 +18,30 @@ if len(img_data) % 2048 != 0:
 iso = bytearray(b'\0' * (16 * 2048))
 
 # Primary Volume Descriptor (Sector 16)
+total_sectors = 20 + len(img_data) // 2048
 pvd = bytearray(2048)
 pvd[0] = 1
 pvd[1:6] = b'CD001'
 pvd[6] = 1
 pvd[40:72] = b'NANOOS'.ljust(32, b' ')
+pvd[80:84] = struct.pack('<I', total_sectors) # Volume space size (LE)
+pvd[84:88] = struct.pack('>I', total_sectors) # Volume space size (BE)
 pvd[120] = 1
 pvd[124] = 1
 pvd[128:132] = struct.pack('<I', 2048)  # logical block size (LE)
 pvd[132:136] = struct.pack('>I', 2048)  # logical block size (BE)
+
+# Root directory record (mandatory for ISO9660 parsers like Rufus)
+root_dir = bytearray(34)
+root_dir[0] = 34           # Length of Directory Record
+root_dir[1] = 0            # Extended Attribute Record Length
+root_dir[10:18] = struct.pack('<I', 2048) + struct.pack('>I', 2048) # Data Length
+root_dir[25] = 2           # File Flags (Directory)
+root_dir[28:32] = struct.pack('<H', 1) + struct.pack('>H', 1) # Volume Sequence Number
+root_dir[32] = 1           # Length of File Identifier
+root_dir[33] = 0           # File Identifier (Root)
+pvd[156:190] = root_dir
+
 iso.extend(pvd)
 
 # Boot Record Volume Descriptor (Sector 17)
