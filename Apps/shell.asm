@@ -199,7 +199,7 @@ sh_loop:
     mov  dl, 6
     add  dl, cl
     mov  esi, sh_str_prompt_p2
-    mov  bl, 0x0F           ; White
+    mov  bl, [term_color]       ; Use selected terminal color
     call sh_write_str
     
     ; Move hardware cursor
@@ -1447,7 +1447,8 @@ sh_read_line:
     
     mov  bl, [edi-1]    ; Character we just stored
     mov  [eax], bl
-    mov  byte [eax+1], 0x0F ; White on black
+    mov  bl, [term_color]   ; Use selected terminal color
+    mov  [eax+1], bl
     inc  byte [sh_cursor_col]
     call sh_hw_cursor
     jmp  .wait
@@ -3205,8 +3206,21 @@ cmd_shutdown:
     call sh_write_str
     call sh_inc_row
 
-    ; Shutdown - this would need ACPI, for now just show message
-    ret
+    ; ACPI Shutdown (works in QEMU with -machine pc)
+    mov ax, 0x2000
+    mov dx, 0x0604
+    out dx, ax
+
+    ; Bochs / Older QEMU Shutdown fallback
+    mov ax, 0x2000
+    mov dx, 0xB004
+    out dx, ax
+
+    ; Fallback halt
+    cli
+.halt:
+    hlt
+    jmp .halt
 
 ; ================================================================
 ;  MEMORY & DEBUG COMMANDS
