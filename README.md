@@ -64,11 +64,39 @@ When you run `.\build.ps1`, it now automatically generates a universally bootabl
 
 ## 📸 Screenshots
 
-* **Booting / Loading Screen**: High-contrast, clean 80x25 VGA text layout.
-* **Interactive Shell**: Responsive command prompt featuring custom visual themes.
-* **Embedded Apps**: Interactive calculator, snake game, and tic-tac-toe!
+Here is a visual showcase of **NanoOS v3.0** running inside the QEMU emulator:
+
+### 1. Booting Sequence & Loading Screen
+*VGA text-mode (80x25) high-contrast loading screen with an animated progress bar.*
+![NanoOS v3.0 Boot Screen](screenshots/boot_screen.png)
+
+### 2. Interactive Shell & Commands Menu
+*Over 30 custom utilities, including a simulated file system, system info, memory viewer, and CPU register display.*
+![NanoOS v3.0 Commands Menu](screenshots/commands_menu.png)
+
+### 3. Retro Snake Game
+*Full console-based Snake game built entirely in 32-bit assembly language.*
+![NanoOS v3.0 Snake Game](screenshots/snake_game.png)
+
+### 4. Interactive Pixel Canvas Paint Application
+*Allows real-time keyboard pixel-painting directly onto the VGA screen.*
+![NanoOS v3.0 Paint App](screenshots/paint_app.png)
+
+### 5. Guessing Game Application
+*A simple high/low number guessing game running inside the shell.*
+![NanoOS v3.0 Guessing Game](screenshots/number_game.png)
 
 ---
 
 ## 🎓 Academic Context
 This operating system was built as a semester project for the **Computer Organization and Assembly Language (COAL)** course at **Air University Islamabad**. It demonstrates low-level hardware interaction, CPU architectures, memory segmentations, registers, and system level software without relying on modern high-level operating systems.
+
+---
+
+## 🏷️ Core Concepts & Search Keywords
+For developers and students researching low-level systems or the **Air University COAL Project**, this repository provides a reference implementation of:
+* **Bare-metal x86 Assembly OS Dev**: Built from scratch using NASM, without C or external standard libraries.
+* **Custom 512-byte MBR Bootloader**: Handles 16-bit Real Mode segmenting, sector loading via BIOS `INT 0x13`, A20 gate activation, and transitioning to 32-bit Protected Mode.
+* **Interrupt Descriptor Table (IDT) & ISRs**: Re-mapping 8259 PICs, configuring custom ISRs, and managing hardware interrupts (Timer IRQ0 and Keyboard IRQ1).
+* **Cooperative Multitasking Kernel**: Task-state stacking, cooperatively switching context (`sys_yield`), and safe stack isolation to prevent buffer overflows.
+* **VGA Text Mode & Graphic Applications**: Direct video memory writing (`0xB8000`), a graphical text-mode file browser, real-time keyboard pixel canvas drawing, and console-based games.
