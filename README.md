@@ -45,12 +45,17 @@ An educational, bare-metal 32-bit operating system built completely from scratch
    *(Alternatively, use `.\build.ps1 run` to launch via WSL).*
 
 ### Making it Bootable on Real Hardware
-When you run `.\build.ps1`, it now automatically generates a universally bootable **`nanoos.iso`** file using the El Torito Bootable CD Specification.
+When you run `.\build.ps1`, it generates three boot images:
+
+* **`nanoos.img`** - 1.44 MB floppy image for QEMU/virtual floppy boot.
+* **`nanoos.iso`** - El Torito CD/floppy-emulation image for virtual CD boot.
+* **`nanoos-usb.img`** - raw USB-HDD image for real USB flash drives.
 
 1. **To run it on a real laptop/PC:**
    * Download a tool like [Rufus](https://rufus.ie/).
-   * Select your USB drive, and choose the generated `nanoos.iso` file.
-   * Flash it, plug the USB into your computer, and boot from it!
+   * Select your USB drive, and choose the generated `nanoos-usb.img` file.
+   * Flash it in raw/DD mode if Rufus asks.
+   * Boot it with **Legacy BIOS / CSM** enabled. NanoOS is BIOS-only and does not include a UEFI bootloader, so UEFI-only laptops will not list it as a bootable USB.
 2. **To run it in VirtualBox or VMware:**
    * Create a new virtual machine.
    * Mount the `nanoos.iso` file into the virtual CD/DVD drive.
@@ -64,27 +69,17 @@ When you run `.\build.ps1`, it now automatically generates a universally bootabl
 
 ## 📸 Screenshots
 
-Here is a visual showcase of **NanoOS v3.0** running inside the QEMU emulator:
+Fresh QEMU-verified screenshots after the latest visual cleanup:
 
-### 1. Booting Sequence & Loading Screen
-*VGA text-mode (80x25) high-contrast loading screen with an animated progress bar.*
-![NanoOS v3.0 Boot Screen](screenshots/boot_screen.png)
+| USB-HDD Boot | Idle Restore |
+|---|---|
+| ![NanoOS booted from USB-HDD raw image](assets/screenshots/nanoos-usb-boot.png) | ![Idle animation exits cleanly without leftover edge characters](assets/screenshots/idle-restore-clean.png) |
 
-### 2. Interactive Shell & Commands Menu
-*Over 30 custom utilities, including a simulated file system, system info, memory viewer, and CPU register display.*
-![NanoOS v3.0 Commands Menu](screenshots/commands_menu.png)
+| Giant Clock | Text Paint |
+|---|---|
+| ![Clock app with clean footer handling](assets/screenshots/clock-clean.png) | ![Paint app with clean footer handling](assets/screenshots/paint-clean.png) |
 
-### 3. Retro Snake Game
-*Full console-based Snake game built entirely in 32-bit assembly language.*
-![NanoOS v3.0 Snake Game](screenshots/snake_game.png)
-
-### 4. Interactive Pixel Canvas Paint Application
-*Allows real-time keyboard pixel-painting directly onto the VGA screen.*
-![NanoOS v3.0 Paint App](screenshots/paint_app.png)
-
-### 5. Guessing Game Application
-*A simple high/low number guessing game running inside the shell.*
-![NanoOS v3.0 Guessing Game](screenshots/number_game.png)
+The shell redraws cleanly after the idle animation, and fullscreen apps restore the footer/prompt correctly when exiting.
 
 ---
 

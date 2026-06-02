@@ -171,6 +171,51 @@ sh_draw_chrome:
 ; ================================================================
 ;  SH_LOOP  — read-eval loop
 ; ================================================================
+; ================================================================
+;  SH_RESTORE_AFTER_IDLE - clean up after matrix screensaver
+; ================================================================
+sh_restore_after_idle:
+    pushad
+
+    call sh_draw_chrome
+    call cmd_clear
+
+    ; Repaint the active prompt after the screensaver has owned VRAM.
+    mov  esi, sh_str_prompt_p1
+    mov  dh, [sh_cur_row]
+    mov  dl, 1
+    mov  bl, 0x0A
+    call sh_write_str
+
+    mov  esi, fs_current_path
+    mov  dl, 6
+    mov  bl, 0x0B
+    call sh_write_str
+
+    mov  edi, fs_current_path
+    xor  ecx, ecx
+.len_loop:
+    cmp  byte [edi+ecx], 0
+    je   .len_done
+    inc  ecx
+    jmp  .len_loop
+.len_done:
+
+    mov  dl, 6
+    add  dl, cl
+    mov  esi, sh_str_prompt_p2
+    mov  bl, [term_color]
+    call sh_write_str
+
+    add  dl, 2
+    mov  [sh_cursor_col], dl
+    mov  dh, [sh_cur_row]
+    mov  [sh_cursor_row], dh
+    call sh_hw_cursor
+
+    popad
+    ret
+
 sh_loop:
     ; Print "nano:"
     mov  esi, sh_str_prompt_p1
@@ -502,6 +547,22 @@ cmd_clear:
     pop  ecx
     pop  edi
     mov  byte [sh_cur_row], 2
+    ret
+
+sh_clear_footer:
+    push eax
+    push ecx
+    push edi
+    mov  edi, SH_VRAM + 24*SH_COLS*2
+    mov  ecx, SH_COLS
+    mov  ax, 0x0020
+.wipe_footer:
+    mov  word [edi], ax
+    add  edi, 2
+    loop .wipe_footer
+    pop  edi
+    pop  ecx
+    pop  eax
     ret
 
 ; ================================================================
@@ -1380,6 +1441,17 @@ sh_read_line:
     call sys_get_scancode
     test al, al
     jz   .wait
+
+    cmp  byte [screen_restore_requested], 0
+    je   .after_idle_restore
+    push eax
+    mov  byte [screen_restore_requested], 0
+    call sh_restore_after_idle
+    pop  eax
+    mov  edi, sh_input_buf
+    xor  ecx, ecx
+    mov  byte [shift_state], 0
+.after_idle_restore:
 
     ; AH contains source: 0=PS/2, 1=Serial
     cmp  ah, 1
@@ -4551,6 +4623,7 @@ cmd_play:
 ; ================================================================
 cmd_paint:
     call cmd_clear
+    call sh_clear_footer
     mov  dh, 24
     mov  dl, 1
     mov  esi, str_paint_help
@@ -4732,6 +4805,7 @@ cmd_paint:
 
 .clear_canvas:
     call cmd_clear
+    call sh_clear_footer
     mov  dh, 24
     mov  dl, 1
     mov  esi, str_paint_help
@@ -4740,6 +4814,7 @@ cmd_paint:
     jmp  .paint_loop
 
 .paint_exit:
+    call sh_draw_chrome
     call cmd_clear
     ret
 
@@ -4748,6 +4823,7 @@ cmd_paint:
 ; ================================================================
 cmd_clock:
     call cmd_clear
+    call sh_clear_footer
     mov  dh, 24
     mov  dl, 20
     mov  esi, str_clock_help
@@ -4836,6 +4912,7 @@ cmd_clock:
     je   .clock_exit
     jmp  .clock_loop
 .clock_exit:
+    call sh_draw_chrome
     call cmd_clear
     ret
 
@@ -5732,7 +5809,7 @@ cmd_cls_s    db "cls", 0
 ; ── UI strings ──────────────────────────────────────────────────
 ansi_clear db 27, "[2J", 27, "[H", 0
 sh_str_hdr     db " NanoOS v3.0   32-bit Protected Mode   NASM Assembly   x86 IA-32", 0
-sh_str_ftr     db " ls cd pwd mkdir touch rm cat ver time date mem regs echo color ps logo snake help ", 0
+sh_str_ftr     db " help about clear calc game files snake paint clock play ls cd pwd cat mem regs ", 0
 sh_str_prompt_p1 db "nano:", 0
 sh_str_prompt_p2 db "> ", 0
 sh_str_unknown db "Unknown command. Type 'help' to see commands.", 0
@@ -5752,49 +5829,49 @@ sh_help_hdr    db "=== NanoOS Commands ===", 0
 
 ; [System & Core]
 sh_cat_sys     db "[System & Core]", 0
-sh_sys_1       db "  help    - Show this screen", 0
-sh_sys_2       db "  about   - OS info", 0
-sh_sys_3       db "  clear   - Clear screen", 0
-sh_sys_4       db "  ver     - OS version", 0
-sh_sys_5       db "  time    - Current time", 0
-sh_sys_6       db "  date    - Current date", 0
-sh_sys_7       db "  uptime  - System uptime", 0
-sh_sys_8       db "  mem     - Memory info", 0
-sh_sys_9       db "  regs    - CPU registers", 0
-sh_sys_10      db "  ps      - Running tasks", 0
-sh_sys_11      db "  reboot  - Restart", 0
-sh_sys_12      db "  shutdown- Power off", 0
+sh_sys_1       db "  help - Help", 0
+sh_sys_2       db "  about- Info", 0
+sh_sys_3       db "  clear- Clear", 0
+sh_sys_4       db "  ver  - Version", 0
+sh_sys_5       db "  time - Time", 0
+sh_sys_6       db "  date - Date", 0
+sh_sys_7       db "  uptime-Uptime", 0
+sh_sys_8       db "  mem  - Memory", 0
+sh_sys_9       db "  regs - Registers", 0
+sh_sys_10      db "  ps   - Tasks", 0
+sh_sys_11      db "  reboot-Restart", 0
+sh_sys_12      db "  shutdown-Power", 0
 
 ; [Simulated Filesystem]
 sh_cat_file    db "[Simulated Filesystem]", 0
-sh_file_1      db "  ls      - List files", 0
-sh_file_2      db "  cd      - Change dir", 0
-sh_file_3      db "  pwd     - Show current dir", 0
-sh_file_4      db "  mkdir   - Create dir", 0
-sh_file_5      db "  rmdir   - Remove dir", 0
-sh_file_6      db "  touch   - Create file", 0
-sh_file_7      db "  rm      - Delete file", 0
-sh_file_8      db "  cat     - View file", 0
-sh_file_9      db "  cp      - Copy file", 0
-sh_file_10     db "  mv      - Move file", 0
-sh_file_11     db "  files   - File browser", 0
+sh_file_1      db "  ls   - List", 0
+sh_file_2      db "  cd   - Change dir", 0
+sh_file_3      db "  pwd  - Path", 0
+sh_file_4      db "  mkdir- New dir", 0
+sh_file_5      db "  rmdir- Del dir", 0
+sh_file_6      db "  touch- New file", 0
+sh_file_7      db "  rm   - Delete", 0
+sh_file_8      db "  cat  - View", 0
+sh_file_9      db "  cp   - Copy", 0
+sh_file_10     db "  mv   - Move", 0
+sh_file_11     db "  files- Browser", 0
 
 ; [Apps & Games]
 sh_cat_apps    db "[Apps & Utilities]", 0
-sh_app_1       db "  calc    - Calculator", 0
-sh_app_2       db "  game    - Number guess", 0
-sh_app_3       db "  snake   - Snake game", 0
-sh_app_4       db "  fibonacci- Math sequence", 0
-sh_app_5       db "  echo    - Print message", 0
-sh_app_6       db "  color   - Change color", 0
-sh_app_7       db "  logo    - ASCII logo", 0
-sh_app_8       db "  wc      - Word count", 0
-sh_app_9       db "  hex     - Hex convert", 0
-sh_app_10      db "  morse   - Text to morse", 0
-sh_app_11      db "  bootanim- Boot sequence", 0
-sh_app_12      db "  play    - Sound player", 0
-sh_app_13      db "  paint   - Text painter", 0
-sh_app_14      db "  clock   - Large clock", 0
+sh_app_1       db "  calc - Calculator", 0
+sh_app_2       db "  game - Guess", 0
+sh_app_3       db "  snake- Game", 0
+sh_app_4       db "  fibonacci-Seq", 0
+sh_app_5       db "  echo - Print", 0
+sh_app_6       db "  color- Text color", 0
+sh_app_7       db "  logo - ASCII", 0
+sh_app_8       db "  wc   - Count", 0
+sh_app_9       db "  hex  - Convert", 0
+sh_app_10      db "  morse- Code", 0
+sh_app_11      db "  bootanim-Boot", 0
+sh_app_12      db "  play - Sound", 0
+sh_app_13      db "  paint- Draw", 0
+sh_app_14      db "  clock- Time", 0
 
 ; ── File System Strings ───────────────────────────────────────────
 str_ls_hdr    db "=== File Listing ===", 0

@@ -16,6 +16,8 @@ kb_buffer   times 256 db 0
 tick_counter dd 0
 idle_ticks   dd 0
 rand_seed    dd 12345
+screensaver_active db 0
+screen_restore_requested db 0
 
 str_panic   db "=== CPU EXCEPTION HALT ===", 0
 str_isr_num db "Vector: ", 0
@@ -249,6 +251,8 @@ irq0:
     jne .do_matrix
     
     ; First tick of matrix: Clear screen to black
+    mov byte [screensaver_active], 1
+    mov byte [screen_restore_requested], 0
     mov edi, 0xB8000
     mov ecx, 2000
     mov ax, 0x0020
@@ -317,6 +321,12 @@ irq0:
 irq1:
     pushad
     ; Matrix Screensaver: Reset idle timer on any keystroke
+    cmp byte [screensaver_active], 0
+    je  .reset_idle
+    mov byte [screensaver_active], 0
+    mov byte [screen_restore_requested], 1
+
+.reset_idle:
     mov dword [idle_ticks], 0
 
     xor eax, eax

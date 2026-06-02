@@ -6,12 +6,14 @@
 
 $NASM    = "C:\Users\muham\AppData\Local\bin\NASM\nasm.exe"
 $IMG     = "nanoos.img"
+$USBIMG  = "nanoos-usb.img"
 $BOOTBIN = "boot\boot.bin"
+$USBBOOTBIN = "boot\boot_usb.bin"
 $KERNBIN = "kernel\kernel.bin"
 
 function Do-Clean {
     Write-Host "[CLEAN] Removing build artifacts..." -ForegroundColor Yellow
-    Remove-Item -Force -ErrorAction SilentlyContinue $BOOTBIN, $KERNBIN, $IMG
+    Remove-Item -Force -ErrorAction SilentlyContinue $BOOTBIN, $USBBOOTBIN, $KERNBIN, $IMG, $USBIMG
     Write-Host "        Done." -ForegroundColor Green
 }
 
@@ -22,6 +24,13 @@ function Do-Build {
     if ($LASTEXITCODE -ne 0) { Write-Host "ERROR: bootloader failed!" -ForegroundColor Red; exit 1 }
     $sz = (Get-Item $BOOTBIN).Length
     Write-Host "        boot.bin = $sz bytes  (must be 512)" -ForegroundColor Gray
+
+    # Assemble USB-HDD bootloader
+    Write-Host "[NASM]  Assembling USB-HDD bootloader..." -ForegroundColor Cyan
+    & $NASM -f bin boot\boot_usb.asm -o $USBBOOTBIN
+    if ($LASTEXITCODE -ne 0) { Write-Host "ERROR: USB bootloader failed!" -ForegroundColor Red; exit 1 }
+    $szUsb = (Get-Item $USBBOOTBIN).Length
+    Write-Host "        boot_usb.bin = $szUsb bytes  (must be 512)" -ForegroundColor Gray
 
     # Assemble kernel + shell
     Write-Host "[NASM]  Assembling kernel + shell + apps..." -ForegroundColor Cyan
@@ -83,6 +92,33 @@ function Do-Build {
 
     $fs.Close()
 
+    # Create USB-HDD raw image. This is the image to write to a flash drive
+    # for real BIOS/CSM USB boot; nanoos.iso remains for CD/floppy emulation.
+    Write-Host "[USB]   Creating USB-HDD raw image..." -ForegroundColor Cyan
+    $usbBlank = New-Object byte[] (16 * 1024 * 1024)
+    [System.IO.File]::WriteAllBytes((Resolve-Path .).Path + "\$USBIMG", $usbBlank)
+
+    $usbFs = [System.IO.File]::Open((Resolve-Path .).Path + "\$USBIMG",
+                [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write)
+    $usbBoot = [System.IO.File]::ReadAllBytes((Resolve-Path .).Path + "\$USBBOOTBIN")
+    $usbFs.Seek(0, [System.IO.SeekOrigin]::Begin) | Out-Null
+    $usbFs.Write($usbBoot, 0, $usbBoot.Length)
+
+    # Active FAT12 partition entry. The OS does not depend on the partition
+    # filesystem, but many BIOSes only list USB media with an MBR partition.
+    $partition = [byte[]](
+        0x80, 0x00, 0x02, 0x00,
+        0x01, 0xFE, 0x3F, 0x00,
+        0x01, 0x00, 0x00, 0x00,
+        0xFF, 0x7F, 0x00, 0x00
+    )
+    $usbFs.Seek(446, [System.IO.SeekOrigin]::Begin) | Out-Null
+    $usbFs.Write($partition, 0, $partition.Length)
+
+    $usbFs.Seek(51200, [System.IO.SeekOrigin]::Begin) | Out-Null
+    $usbFs.Write($kern, 0, $kern.Length)
+    $usbFs.Close()
+
     Write-Host "[ISO]   Generating bootable El Torito ISO..." -ForegroundColor Cyan
     & python make_iso.py
 
@@ -90,6 +126,7 @@ function Do-Build {
     Write-Host "  +--------------------------------------+" -ForegroundColor Green
     Write-Host "  |   NanoOS build complete!             |" -ForegroundColor Green
     Write-Host "  |   Run:  .\build.ps1 run              |" -ForegroundColor Green
+    Write-Host "  |   USB:  nanoos-usb.img               |" -ForegroundColor Green
     Write-Host "  +--------------------------------------+" -ForegroundColor Green
     Write-Host ""
 }
